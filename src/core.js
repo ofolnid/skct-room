@@ -55,6 +55,10 @@ export function createExam(config, pdfHash, now = Date.now()) {
 export function resetScratch(state){state.memo='';state.drawings=[];state.calculator={expression:'',result:'0',completed:false,history:[]};}
 export function startSection(state, now = Date.now()) {
   if (!['ready','between','preparing'].includes(state.phase)) return false;
+  if(state.phase==='preparing'){
+    if(now<state.preparationDeadline)return false;
+    now=state.preparationDeadline;
+  }
   const section = state.sections[state.sectionIndex];
   resetScratch(state);state.phase = 'running'; state.questionIndex = 0; state.selection = null;state.selectionFlags={uncertain:false,guessed:false};
   section.startedAt = now;section.pausedMs=0;state.pausedAt=null;state.preparationDeadline=null; state.questionStartedAt = now; state.deadline = now + section.minutes * 60000;

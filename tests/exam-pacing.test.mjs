@@ -4,7 +4,7 @@ import {createExam,validateConfig,beginPreparation,synchronizeExam,startSection,
 const config=mode=>({title:'진행 모드',mode:'full',breakMode:mode,pdfRange:{start:1,end:10},sections:['언어이해','자료해석','창의수리','언어추리','수열추리'].map(name=>({name,count:20,minutes:15}))});
 test('자유 휴식은 수동 시작 뒤 정확히 5초 준비하며 시험 시간에 포함하지 않는다',()=>{
  const s=createExam(config('free'),'pdf',0);assert.equal(beginPreparation(s,100),true);assert.equal(beginPreparation(s,200),false);
- assert.equal(chooseAnswer(s,1,200),false);assert.equal(pauseExam(s,200),false);assert.equal(advance(s,true,200),false);
+ assert.equal(startSection(s,200),false);assert.equal(chooseAnswer(s,1,200),false);assert.equal(pauseExam(s,200),false);assert.equal(advance(s,true,200),false);
  assert.equal(synchronizeExam(s,5099),false);assert.equal(s.phase,'preparing');synchronizeExam(s,5100);assert.equal(s.sections[0].startedAt,5100);assert.equal(s.deadline,905100);
  submitSection(s,6100);assert.equal(s.phase,'between');synchronizeExam(s,1000000);assert.equal(s.phase,'between');
  beginPreparation(s,1000000);synchronizeExam(s,1005000);assert.equal(s.sections[1].startedAt,1005000);assert.equal(s.sections[0].elapsed,1000);
