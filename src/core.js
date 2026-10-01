@@ -48,15 +48,26 @@ export function createExam(config, pdfHash, now = Date.now()) {
   config = validateConfig(config);
   return { version: VERSION, id: crypto.randomUUID(), title: config.title, mode:config.mode, pdfRange:config.pdfRange, createdAt: now, pdfHash,
     sections: config.sections.map(s => ({ ...s, items: Array.from({length:s.count}, () => ({answer:null, status:'unreached', ms:0})), startedAt:null, endedAt:null, elapsed:0 })),
-    phase:'ready', sectionIndex:0, questionIndex:0, questionStartedAt:null, deadline:null, selection:null, selectionFlags:{uncertain:false,guessed:false}, memo:'', reflection:'', drawings:[], calculator:{expression:'',result:'0',completed:false,history:[]} };
+    phase:'ready', pausedAt:null, sectionIndex:0, questionIndex:0, questionStartedAt:null, deadline:null, selection:null, selectionFlags:{uncertain:false,guessed:false}, memo:'', reflection:'', drawings:[], calculator:{expression:'',result:'0',completed:false,history:[]} };
 }
 export function resetScratch(state){state.memo='';state.drawings=[];state.calculator={expression:'',result:'0',completed:false,history:[]};}
 export function startSection(state, now = Date.now()) {
   if (!['ready','between'].includes(state.phase)) return false;
   const section = state.sections[state.sectionIndex];
   resetScratch(state);state.phase = 'running'; state.questionIndex = 0; state.selection = null;state.selectionFlags={uncertain:false,guessed:false};
-  section.startedAt = now; state.questionStartedAt = now; state.deadline = now + section.minutes * 60000;
+  section.startedAt = now;section.pausedMs=0;state.pausedAt=null; state.questionStartedAt = now; state.deadline = now + section.minutes * 60000;
   return true;
+}
+export function pauseExam(state,now=Date.now()) {
+  if(expire(state,now)||state.phase!=='running')return false;
+  state.phase='paused';state.pausedAt=now;return true;
+}
+export function resumePausedExam(state,now=Date.now()) {
+  if(state.phase!=='paused')return false;
+  const duration=Math.max(0,now-state.pausedAt);
+  state.deadline+=duration;state.questionStartedAt+=duration;
+  state.sections[state.sectionIndex].pausedMs=(state.sections[state.sectionIndex].pausedMs||0)+duration;
+  state.pausedAt=null;state.phase='running';return true;
 }
 export function toggleFlag(state,flag,now=Date.now()) {
   if(expire(state,now) || state.phase!=='running' || !['uncertain','guessed'].includes(flag))return false;
@@ -72,7 +83,7 @@ function recordCurrent(state, at, skip = false, reason = 'submitted') {
 }
 function closeSection(state, at) {
   const section = state.sections[state.sectionIndex];
-  section.endedAt = at; section.elapsed = Math.max(0, at - section.startedAt);
+  section.endedAt = at; section.elapsed = Math.max(0, at - section.startedAt - (section.pausedMs||0));
   resetScratch(state);state.selection = null; state.questionStartedAt = null; state.deadline = null;
   if (state.sectionIndex + 1 < state.sections.length) { state.sectionIndex++; state.phase = 'between'; }
   else state.phase = 'finished';
