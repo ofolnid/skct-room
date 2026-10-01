@@ -38,6 +38,7 @@ export function mountTools(container, state, onChange) {
   function saveCalc(){state.calculator={expression:input.value,result:result.textContent,completed,history};onChange();}
   function fresh(){if(completed){expression='';input.value='';result.textContent='0';completed=false;}}
   function clear(){expression='';input.value='';result.textContent='0';completed=false;saveCalc();}
+  function erase(){if(completed)result.textContent='0';completed=false;expression=input.value.slice(0,-1);input.value=expression;saveCalc();}
   function equals(){
     if(completed)return;
     try{
@@ -48,14 +49,14 @@ export function mountTools(container, state, onChange) {
     saveCalc();
   }
   input.onbeforeinput=event=>{if(completed&&event.inputType.startsWith('insert'))fresh();};
-  input.oninput=()=>{expression=input.value;completed=false;saveCalc();};
+  input.oninput=()=>{if(completed)result.textContent='0';expression=input.value;completed=false;saveCalc();};
   container.querySelector('.calculator-box').onkeydown=event=>{
     if(event.metaKey||event.ctrlKey||event.altKey)return;
     if(event.key==='Enter'){event.preventDefault();equals();return;}
     if(event.key==='Escape'){event.preventDefault();clear();return;}
     if(event.target===input)return;
     if(/^[0-9.+\-*/()%]$/.test(event.key)||event.key==='Backspace'){
-      event.preventDefault();fresh();expression=event.key==='Backspace'?input.value.slice(0,-1):input.value+event.key;
+      event.preventDefault();if(event.key==='Backspace'){erase();return;}fresh();expression=input.value+event.key;
       input.value=expression.slice(0,200);saveCalc();
     }
   };
@@ -63,9 +64,9 @@ export function mountTools(container, state, onChange) {
     const key=button.dataset.calc;
     if(key==='='){equals();return;}
     if(key==='AC'){clear();input.focus();return;}
+    if(key==='backspace'){erase();input.focus();return;}
     fresh();
-    if(key==='C')expression=input.value.slice(0,-1);
-    else if(key==='+/-')expression=input.value.startsWith('-(')?input.value.slice(2,-1):`-(${input.value||'0'})`;
+    if(key==='+/-')expression=input.value.startsWith('-(')?input.value.slice(2,-1):`-(${input.value||'0'})`;
     else expression=input.value.length<200?input.value+key:input.value;
     input.value=expression;saveCalc();input.focus();
   });
@@ -86,5 +87,5 @@ export function toolsMarkup() {
   return `<div class="tools-box"><div class="tool-tabs"><button class="active" data-tool="note">메모장</button><button data-tool="draw">그림판</button></div>
   <div data-tool-panel="note"><textarea id="scratch-note" maxlength="15000" placeholder="계산 과정과 생각을 자유롭게 적어 보세요." aria-label="시험 메모장"></textarea><span class="subtle">다음 문제로 넘어가면 도구가 초기화됩니다.</span></div>
   <div data-tool-panel="draw" hidden><div class="drawing-controls"><label>색상 <input type="color" id="pen-color" value="#23463e"></label><label>굵기 <select id="pen-width"><option value="3">얇게</option><option value="6">보통</option><option value="10">굵게</option></select></label><button id="undo-drawing" class="text-button">한 획 취소</button><button id="clear-drawing" class="text-button">전체 지우기</button></div><canvas id="drawing" width="900" height="360" aria-label="풀이 그림판"></canvas></div>
-  </div><div class="calculator-box" tabindex="0" aria-label="계산기"><div class="calculator-heading"><strong>계산기</strong><span>Enter 계산 · Esc 초기화</span></div><div id="calc-history" aria-label="최근 계산 기록"></div><label class="sr-only" for="calc-input">계산 수식</label><input id="calc-input" maxlength="200" placeholder="수식을 입력하거나 버튼을 누르세요" autocomplete="off"><output id="calc-result">0</output><div class="calc-grid">${['(',')','%','AC','C','+/-','÷','×','7','8','9','-','4','5','6','+','1','2','3','=','0','.'].map(k=>`<button data-calc="${k}" class="${k==='='?'equals':''}">${k}</button>`).join('')}</div></div>`;
+  </div><div class="calculator-box" tabindex="0" aria-label="계산기"><div class="calculator-heading"><strong>계산기</strong><span>Enter 계산 · Esc 초기화</span></div><div id="calc-history" aria-label="최근 계산 기록"></div><label class="sr-only" for="calc-input">계산 수식</label><input id="calc-input" maxlength="200" placeholder="수식을 입력하거나 버튼을 누르세요" autocomplete="off"><output id="calc-result">0</output><div class="calc-grid">${['(',')','%','backspace','AC','+/-','÷','×','7','8','9','-','4','5','6','+','1','2','3','=','0','.'].map(k=>`<button data-calc="${k}" class="${k==='='?'equals':''}" ${k==='backspace'?'aria-label="한 글자 지우기" title="한 글자 지우기"':k==='AC'?'aria-label="전체 지우기" title="전체 지우기"':''}>${k==='backspace'?'⌫':k}</button>`).join('')}</div></div>`;
 }
