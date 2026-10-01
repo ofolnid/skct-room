@@ -48,7 +48,7 @@ function renderSetup(){
   app.querySelector('#pdf-file').onchange=async event=>{
     if(busy)return;config=currentConfig();selectedKey=app.querySelector('#key-select').value;
     const file=event.target.files[0];if(!file)return;busy=true;disableSetup(true);showSetupError('');
-    try { pdfInfo=await openPDF(file);fileName=file.name;prepared=false;app.querySelector('#pdf-file-name').textContent=fileName;app.querySelector('#pdf-file-meta').textContent=`총 ${pdfInfo.count}페이지 · 준비 전 페이지 범위를 설정하세요`; }
+    try { pdfInfo=await openPDF(file);fileName=file.name;prepared=false;config.pdfRange={start:1,end:pdfInfo.count};app.querySelector('#range-start').value='1';app.querySelector('#range-end').value=String(pdfInfo.count);app.querySelector('#pdf-file-name').textContent=fileName;app.querySelector('#pdf-file-meta').textContent=`총 ${pdfInfo.count}페이지 · 준비 전 페이지 범위를 설정하세요`; }
     catch(err){pdfInfo=null;prepared=false;fileName='';showSetupError(err.message);}
     finally{busy=false;disableSetup(false);}
   };
