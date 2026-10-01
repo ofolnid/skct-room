@@ -19,7 +19,6 @@ export function calculate(expression) {
   const result=sum(); if(i!==tokens.length || !Number.isFinite(result)) throw new Error('계산할 수 없는 수식입니다.');
   return Number(result.toPrecision(12));
 }
-let expression='';
 export function mountTools(container, state, onChange) {
   const memo=container.querySelector('#scratch-note'); memo.value=state.memo || '';
   memo.oninput=()=>{state.memo=memo.value.slice(0,15000);onChange();};
@@ -27,10 +26,19 @@ export function mountTools(container, state, onChange) {
     container.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b===button));
     container.querySelectorAll('[data-tool-panel]').forEach(p=>p.hidden=p.dataset.toolPanel!==button.dataset.tool);
   });
+  state.calculator ??= {expression:'',result:'0'};
+  let expression=state.calculator.expression;
   const input=container.querySelector('#calc-input'); input.value=expression;
-  const result=container.querySelector('#calc-result');
-  function equals(){ try { const value=calculate(input.value); result.textContent=String(value); expression=String(value); } catch(e){result.textContent=e.message;} }
-  input.oninput=()=>{expression=input.value;}; input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();equals();}};
+  const result=container.querySelector('#calc-result');result.textContent=state.calculator.result;
+  function saveCalc(){state.calculator={expression:input.value,result:result.textContent};onChange();}
+  function equals(){ try { const value=calculate(input.value); result.textContent=String(value); expression=String(value);input.value=expression; } catch(e){result.textContent=e.message;}saveCalc(); }
+  input.oninput=()=>{expression=input.value;saveCalc();};
+  container.querySelector('.calculator-box').onkeydown=e=>{
+    if(e.key==='Enter'){e.preventDefault();equals();return;}
+    if(e.key==='Escape'){e.preventDefault();expression='';input.value='';result.textContent='0';saveCalc();return;}
+    if(e.target===input || e.metaKey || e.ctrlKey || e.altKey)return;
+    if(/^[0-9.+\-*/()%]$/.test(e.key)||e.key==='Backspace'){e.preventDefault();expression=e.key==='Backspace'?input.value.slice(0,-1):input.value+e.key;input.value=expression.slice(0,200);saveCalc();}
+  };
   container.querySelectorAll('[data-calc]').forEach(b=>b.onclick=()=>{
     const k=b.dataset.calc;
     if(k==='='){equals();return;}
@@ -38,7 +46,7 @@ export function mountTools(container, state, onChange) {
     else if(k==='C') expression=input.value.slice(0,-1);
     else if(k==='+/-') expression=input.value.startsWith('-(')?input.value.slice(2,-1):`-(${input.value || '0'})`;
     else expression=input.value.length<200?input.value+k:input.value;
-    input.value=expression;
+    input.value=expression;saveCalc();input.focus();
   });
   const canvas=container.querySelector('#drawing'), ctx=canvas.getContext('2d');
   let current=null;
@@ -53,8 +61,8 @@ export function mountTools(container, state, onChange) {
   repaint();
 }
 export function toolsMarkup() {
-  return `<div class="tools-box"><div class="tool-tabs"><button class="active" data-tool="note">메모장</button><button data-tool="draw">그림판</button><button data-tool="calc">계산기</button></div>
-  <div data-tool-panel="note"><textarea id="scratch-note" maxlength="15000" placeholder="계산 과정과 생각을 자유롭게 적어 보세요." aria-label="시험 메모장"></textarea><span class="subtle">메모는 내 브라우저에만 저장됩니다.</span></div>
+  return `<div class="tools-box"><div class="tool-tabs"><button class="active" data-tool="note">메모장</button><button data-tool="draw">그림판</button></div>
+  <div data-tool-panel="note"><textarea id="scratch-note" maxlength="15000" placeholder="계산 과정과 생각을 자유롭게 적어 보세요." aria-label="시험 메모장"></textarea><span class="subtle">다음 문제로 넘어가면 도구가 초기화됩니다.</span></div>
   <div data-tool-panel="draw" hidden><div class="drawing-controls"><label>색상 <input type="color" id="pen-color" value="#23463e"></label><label>굵기 <select id="pen-width"><option value="3">얇게</option><option value="6">보통</option><option value="10">굵게</option></select></label><button id="undo-drawing" class="text-button">한 획 취소</button><button id="clear-drawing" class="text-button">전체 지우기</button></div><canvas id="drawing" width="900" height="360" aria-label="풀이 그림판"></canvas></div>
-  <div data-tool-panel="calc" hidden><label class="sr-only" for="calc-input">계산 수식</label><input id="calc-input" maxlength="200" placeholder="수식을 입력하거나 버튼을 누르세요" autocomplete="off"><output id="calc-result">0</output><div class="calc-grid">${['(',')','%','AC','C','+/-','÷','×','7','8','9','-','4','5','6','+','1','2','3','=','0','.'].map(k=>`<button data-calc="${k}" class="${k==='='?'equals':''}">${k}</button>`).join('')}</div></div></div>`;
+  </div><div class="calculator-box" tabindex="0" aria-label="계산기"><div class="calculator-heading"><strong>계산기</strong><span>Enter 계산 · Esc 초기화</span></div><label class="sr-only" for="calc-input">계산 수식</label><input id="calc-input" maxlength="200" placeholder="수식을 입력하거나 버튼을 누르세요" autocomplete="off"><output id="calc-result">0</output><div class="calc-grid">${['(',')','%','AC','C','+/-','÷','×','7','8','9','-','4','5','6','+','1','2','3','=','0','.'].map(k=>`<button data-calc="${k}" class="${k==='='?'equals':''}">${k}</button>`).join('')}</div></div>`;
 }

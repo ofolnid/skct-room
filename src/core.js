@@ -2,8 +2,11 @@ export const VERSION = 1;
 export function validateConfig(input) {
   if (!input || typeof input.title !== 'string' || !input.title.trim() || input.title.length > 120) throw new Error('시험 이름을 1~120자로 입력해 주세요.');
   if (!Array.isArray(input.sections) || input.sections.length < 1 || input.sections.length > 8) throw new Error('과목은 1~8개까지 설정할 수 있습니다.');
+  const range=input.pdfRange || {start:Math.min(...input.sections.map(s=>Number(s.start))),end:Math.max(...input.sections.map(s=>Number(s.end)))};
+  const start=Number(range.start), end=Number(range.end);
+  if(!Number.isInteger(start)||!Number.isInteger(end)||start<1||end<start||end>10000)throw new Error('PDF 시작·끝 페이지를 확인해 주세요.');
   const sections = input.sections.map((s, i) => {
-    const start = Number(s.start), end = Number(s.end), count = Number(s.count), minutes = Number(s.minutes);
+    const count = Number(s.count), minutes = Number(s.minutes);
     if (!s.name || typeof s.name !== 'string' || s.name.length > 40) throw new Error(`${i + 1}번째 과목 이름을 입력해 주세요.`);
     if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start || end > 10000) throw new Error(`${s.name}: PDF 시작·끝 페이지를 확인해 주세요.`);
     if (!Number.isInteger(count) || count < 1 || count > 100 || !Number.isFinite(minutes) || minutes < 0.1 || minutes > 180) throw new Error(`${s.name}: 문항 수는 1~100개, 시간은 0.1~180분입니다.`);
@@ -18,7 +21,7 @@ export function validateConfig(input) {
   if(mode==='full' && new Set(sections.map(s=>s.name)).size!==5)throw new Error('전체 모의고사의 영역 이름이 중복되었습니다.');
   if(mode==='single' && sections.length!==1)throw new Error('영역별 연습은 한 영역만 선택합니다.');
   if(mode!=='custom' && sections.some(s=>s.minutes!==15 || s.count!==20))throw new Error('영역별 시험은 20문제·15분으로 구성합니다.');
-  return { title: input.title.trim(), mode, sections };
+  return { title: input.title.trim(), mode, pdfRange:{start,end}, sections };
 }
 export function validateMetadata(values,count,type) {
   if(!Array.isArray(values) || values.length!==count)throw new Error('문항별 참고 정보 개수가 문항 수와 다릅니다.');
@@ -35,14 +38,15 @@ export function parseKey(input, count) {
 }
 export function createExam(config, pdfHash, now = Date.now()) {
   config = validateConfig(config);
-  return { version: VERSION, id: crypto.randomUUID(), title: config.title, mode:config.mode, createdAt: now, pdfHash,
+  return { version: VERSION, id: crypto.randomUUID(), title: config.title, mode:config.mode, pdfRange:config.pdfRange, createdAt: now, pdfHash,
     sections: config.sections.map(s => ({ ...s, items: Array.from({length:s.count}, () => ({answer:null, status:'unreached', ms:0})), startedAt:null, endedAt:null, elapsed:0 })),
-    phase:'ready', sectionIndex:0, questionIndex:0, questionStartedAt:null, deadline:null, selection:null, selectionFlags:{uncertain:false,guessed:false}, memo:'', reflection:'', drawings:[] };
+    phase:'ready', sectionIndex:0, questionIndex:0, questionStartedAt:null, deadline:null, selection:null, selectionFlags:{uncertain:false,guessed:false}, memo:'', reflection:'', drawings:[], calculator:{expression:'',result:'0'} };
 }
+export function resetScratch(state){state.memo='';state.drawings=[];state.calculator={expression:'',result:'0'};}
 export function startSection(state, now = Date.now()) {
   if (!['ready','between'].includes(state.phase)) return false;
   const section = state.sections[state.sectionIndex];
-  state.phase = 'running'; state.questionIndex = 0; state.selection = null;state.selectionFlags={uncertain:false,guessed:false};
+  resetScratch(state);state.phase = 'running'; state.questionIndex = 0; state.selection = null;state.selectionFlags={uncertain:false,guessed:false};
   section.startedAt = now; state.questionStartedAt = now; state.deadline = now + section.minutes * 60000;
   return true;
 }
@@ -61,14 +65,14 @@ function recordCurrent(state, at, skip = false, reason = 'submitted') {
 function closeSection(state, at) {
   const section = state.sections[state.sectionIndex];
   section.endedAt = at; section.elapsed = Math.max(0, at - section.startedAt);
-  state.selection = null; state.questionStartedAt = null; state.deadline = null;
+  resetScratch(state);state.selection = null; state.questionStartedAt = null; state.deadline = null;
   if (state.sectionIndex + 1 < state.sections.length) { state.sectionIndex++; state.phase = 'between'; }
   else state.phase = 'finished';
 }
 export function advance(state, skip = false, now = Date.now(), expectedIndex = state.questionIndex) {
   if (expire(state, now) || state.phase !== 'running' || state.questionIndex !== expectedIndex) return false;
   if (!skip && state.selection == null) return false;
-  recordCurrent(state, now, skip);
+  recordCurrent(state, now, skip);resetScratch(state);
   if (state.questionIndex + 1 === state.sections[state.sectionIndex].count) closeSection(state, now);
   else { state.questionIndex++; state.questionStartedAt = now; state.selection = null;state.selectionFlags={uncertain:false,guessed:false}; }
   return true;
