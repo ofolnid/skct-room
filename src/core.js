@@ -81,14 +81,19 @@ export function synchronizeExam(state,now=Date.now()) {
 }
 export function pauseExam(state,now=Date.now()) {
   if(expire(state,now)||state.phase!=='running')return false;
-  state.phase='paused';state.pausedAt=now;return true;
+  state.phase='paused';state.pausedPhase='running';state.pausedAt=now;return true;
 }
 export function resumePausedExam(state,now=Date.now()) {
   if(state.phase!=='paused')return false;
   const duration=Math.max(0,now-state.pausedAt);
-  state.deadline+=duration;state.questionStartedAt+=duration;
-  state.sections[state.sectionIndex].pausedMs=(state.sections[state.sectionIndex].pausedMs||0)+duration;
-  state.pausedAt=null;state.phase='running';return true;
+  if(state.pausedPhase==='preparing'){
+    state.preparationDeadline+=duration;state.phase='preparing';
+  }else{
+    state.deadline+=duration;state.questionStartedAt+=duration;
+    state.sections[state.sectionIndex].pausedMs=(state.sections[state.sectionIndex].pausedMs||0)+duration;
+    state.phase='running';
+  }
+  state.pausedAt=null;state.pausedPhase=null;return true;
 }
 export function toggleFlag(state,flag,now=Date.now()) {
   if(expire(state,now) || state.phase!=='running' || !['uncertain','guessed'].includes(flag))return false;
@@ -151,3 +156,12 @@ export function formatTime(ms) {
   return `${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;
 }
 export const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+export function pauseForNavigation(state,now=Date.now()) {
+  const changed=synchronizeExam(state,now);
+  if(state.phase==='running')return pauseExam(state,now);
+  if(state.phase==='preparing'){
+    state.pausedPhase='preparing';state.phase='paused';state.pausedAt=now;return true;
+  }
+  return changed;
+}

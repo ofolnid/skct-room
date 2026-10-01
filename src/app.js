@@ -1,4 +1,4 @@
-import { validateConfig, createExam, beginPreparation, synchronizeExam, pauseExam, resumePausedExam, chooseAnswer, advance, submitSection, toggleFlag, parseKey, formatTime, escapeHTML as e } from './core.js';
+import { validateConfig, createExam, beginPreparation, synchronizeExam, pauseForNavigation, pauseExam, resumePausedExam, chooseAnswer, advance, submitSection, toggleFlag, parseKey, formatTime, escapeHTML as e } from './core.js';
 import { confirmAction,dismissActionDialogs } from './dialog.js';
 import { loadAnswerSets,applyAnswerSet,clearAnswerMetadata,regradeAnswerSet } from './answer-sets.js';
 import { load, save, storageAvailable, rememberResult, savedResults } from './storage.js';
@@ -14,7 +14,7 @@ let pdfViewer=null, pdfPosition=exam?.pdfPosition||{page:1,fraction:0,left:0};
 let library=[], selectedKey='', manualTitle='', timer=null, resultFilter='all', answerSetError='';
 try { library=await loadAnswerSets(); } catch(err) { answerSetError=err.message; }
 const lockName='skct-room-v1-active';
-let releaseLock=null, locked=false;
+let releaseLock=null, locked=false, helpResume=null;
 async function acquireLock(){
   if(!navigator.locks) { locked=true; return; }
   await new Promise(resolve=>navigator.locks.request(lockName,{ifAvailable:true}, async lock=>{
@@ -27,7 +27,7 @@ if(!locked){app.innerHTML='<section class="panel empty-state"><h1>다른 창에�
 else { if(exam && synchronizeExam(exam))persist(); if(exam?.phase==='finished'){view='result';rememberResult(exam);renderResult();}else renderSetup(); }
 function notify(text){const t=document.querySelector('#toast');t.textContent=text;t.hidden=false;clearTimeout(t._timeout);t._timeout=setTimeout(()=>t.hidden=true,4200);}
 function persist(){if(!locked)return;if(exam&&pdfViewer)exam.pdfPosition=pdfViewer.position();const current=load('current');if(exam && !(current && current.id!==exam.id && ['ready','running','paused','between','preparing'].includes(current.phase)))save('current',exam); document.querySelector('#storage-warning').hidden=storageAvailable();}
-function nav(){document.querySelectorAll('nav button').forEach(b=>b.disabled=view==='exam'&&exam?.phase==='preparing');document.body.classList.toggle('exam-active',view==='exam');document.querySelector('#nav-setup').classList.toggle('active',['setup','exam'].includes(view));document.querySelector('#nav-history').classList.toggle('active',['history','result'].includes(view));}
+function nav(){document.querySelectorAll('nav button').forEach(b=>b.disabled=b.id!=='nav-help'&&view==='exam'&&exam?.phase==='preparing');document.body.classList.toggle('exam-active',view==='exam');document.querySelector('#nav-setup').classList.toggle('active',['setup','exam'].includes(view));document.querySelector('#nav-history').classList.toggle('active',['history','result'].includes(view));}
 function currentConfig(){return {title:library.find(k=>k.id===(app.querySelector('#key-select')?.value??selectedKey))?.title??app.querySelector('#exam-title')?.value??config.title,mode:examMode,breakMode,pdfRange:{start:Number(app.querySelector('#range-start').value),end:Number(app.querySelector('#range-end').value)},sections:config.sections.map(clearAnswerMetadata)};}
 function applyLibrary(c){if(!selectedKey)return c;const key=library.find(k=>k.id===selectedKey);if(!key)throw new Error('선택한 정답 세트를 찾을 수 없습니다.');return applyAnswerSet(c,key);}
 function subjectRow(s,i){return `<div class="subject-overview"><span>${String(i+1).padStart(2,'0')}</span><strong>${e(s.name)}</strong><small>20문제 · 15분</small></div>`;}
@@ -39,7 +39,7 @@ function renderSetup(){
   const recover=exam && ['ready','running','paused','between','preparing'].includes(exam.phase);
   app.className='setup-page';
   app.innerHTML=`<div class="hero"><div><span class="eyebrow">A LITTLE PRACTICE. A BETTER PACE.</span><h1>실전처럼 풀고,<br><span>나의 페이스를 찾으세요.</span></h1><p>내 PDF로 시작하는 모의 시험.<br>한 문제씩 확정하고, 풀이 시간을 남겨 보세요.</p></div><div class="hero-art" aria-hidden="true"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="pace-card"><span>YOUR NEXT PACE</span><strong>15:00</strong><div class="mini-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><small>20 questions · one step at a time</small></div><span class="floating-tag">✓ 준비되면 시작</span></div></div>
-  ${recover?`<section class="resume-banner"><div><strong>이어서 볼 수 있는 시험이 있습니다.</strong><p>${e(exam.title)} · ${e(exam.sections[exam.sectionIndex].name)}${exam.phase==='running'?' · 제한시간이 계속 흐르고 있습니다.':exam.phase==='paused'?' · 일시정지 중':exam.phase==='preparing'?' · 준비 카운트다운이 계속 흐르고 있습니다.':''}</p></div><button id="resume-exam" class="primary">이어보기</button></section>`:''}
+  ${recover?`<section class="resume-banner"><div><strong>이어서 볼 수 있는 시험이 있습니다.</strong><p>${e(exam.title)} · ${e(exam.sections[exam.sectionIndex].name)}${exam.phase==='running'?' · 제한시간이 계속 흐르고 있습니다.':exam.phase==='paused'?(exam.pausedPhase==='preparing'?' · 준비 카운트다운 일시정지 중':' · 일시정지 중'):exam.phase==='preparing'?' · 준비 카운트다운이 계속 흐르고 있습니다.':''}</p></div><button id="resume-exam" class="primary">이어보기</button></section>`:''}
   <form id="setup-form"><div class="setup-grid"><div class="setup-main"><section class="panel"><div class="section-title"><h2><span class="step-dot">1</span> 채점 방식</h2><span class="pill">정답 세트 또는 직접 입력</span></div><label class="wide-label">사용할 시험 정답 세트<select id="key-select"><option value="">시험 종료 후 직접 정답 입력</option>${library.map(k=>`<option value="${e(k.id)}" ${selectedKey===k.id?'selected':''}>${e(k.title)} · ${k.sections.length}개 과목</option>`).join('')}</select></label><label id="manual-title-field" class="wide-label" ${selectedKey?'hidden':''}>시험 이름<input id="exam-title" maxlength="120" placeholder="예: 자유 문제집 · 언어이해 연습" value="${e(manualTitle)}" ${selectedKey?'':'required'}></label><p id="selected-exam-title" class="subtle" ${selectedKey?'':'hidden'}>시험 이름 · ${e(library.find(k=>k.id===selectedKey)?.title||'')}</p><p class="subtle">선택한 정답 세트는 시험 중 표시되지 않습니다. ${library.length?library.length+'개 세트가 준비되어 있습니다.':'아직 등록된 세트가 없습니다. 종료 후 직접 채점할 수 있습니다.'}${answerSetError?e(answerSetError):''}</p><div class="actions"><button id="import-config" type="button" class="secondary small">시험 설정 가져오기</button><button id="export-config" type="button" class="secondary small">시험 설정 내보내기</button><input id="config-file" type="file" accept="application/json,.json" hidden></div><p class="subtle">설정 파일에는 페이지 범위와 선택한 정답표가 들어갈 수 있습니다. PDF는 포함되지 않습니다.</p></section>
   <section class="panel"><div class="section-title"><h2><span class="step-dot">2</span> 내 PDF</h2><span class="subtle">서버 전송 없이 내 기기에서</span></div><label class="upload-area" for="pdf-file"><span class="file-icon">↥</span><strong id="pdf-file-name">${e(fileName || '내 PDF 선택')}</strong><span id="pdf-file-meta">${pdfInfo?`총 ${pdfInfo.count}페이지 · 페이지 범위를 아래에서 지정하세요`:'클릭해서 PDF를 선택하세요 · 최대 500MB'}</span><input id="pdf-file" type="file" accept="application/pdf,.pdf"></label><p class="subtle">문제집은 각자 이용 권한이 있는 파일을 선택해 주세요. 사이트에서 공유되지 않습니다.</p></section>
   <section class="panel"><div class="section-title"><h2><span class="step-dot">3</span> 응시 범위와 영역</h2><span class="pill">${examMode==='full'?'5영역 · 휴식시간 제외':'1영역 집중 연습'}</span></div><div class="exam-mode-picker" role="group" aria-label="응시 방식"><button type="button" data-mode="full" class="${examMode==='full'?'selected':''}"><span>FULL PRACTICE</span><strong>전체 모의고사</strong><small>5영역 × 15분 · 최대 75분</small></button><button type="button" data-mode="single" class="${examMode==='single'?'selected':''}"><span>FOCUS PRACTICE</span><strong>영역별 연습</strong><small>선택한 1영역 · 15분</small></button></div>${examMode==='full'?`<fieldset class="break-mode-picker"><legend>영역 사이 진행 방식</legend><label><input type="radio" name="break-mode" value="free" ${breakMode==='free'?'checked':''}><span><strong>자유 휴식 모드</strong><small>영역 사이 자유 휴식 → 시작 버튼 → 5초 준비 후 자동 시작</small></span></label><label><input type="radio" name="break-mode" value="timed" ${breakMode==='timed'?'checked':''}><span><strong>실전 진행 모드</strong><small>영역 제출 후 30초 동안 휴식·PDF 위치 이동 → 다음 영역 자동 시작</small></span></label><p class="subtle">첫 영역은 시작 버튼 뒤 5초 준비합니다. 준비·휴식은 응시시간에서 제외됩니다.</p></fieldset>`:''}<p class="subtle">이번에 볼 모의고사의 시작·끝 페이지만 한 번 입력하세요. 책 쪽수가 아닌 PDF 페이지 순서입니다.</p><div class="pdf-range"><label>PDF 시작 페이지<input id="range-start" type="number" min="1" max="10000" value="${config.pdfRange?.start||1}" required></label><span>—</span><label>PDF 끝 페이지<input id="range-end" type="number" min="1" max="10000" value="${config.pdfRange?.end||1}" required></label></div>${examMode==='single'?`<label class="wide-label">연습할 영역<select id="single-subject">${subjectNames.map(name=>`<option value="${name}" ${name===singleSubject?'selected':''}>${name}</option>`).join('')}</select></label>`:''}<div id="subjects">${config.sections.map(subjectRow).join('')}</div><p class="subtle preparation-note">선택 범위만 고화질로 모두 준비합니다. 준비가 끝난 뒤 시험 시간이 시작됩니다.</p></section></div>
@@ -78,7 +78,7 @@ function renderSetup(){
 }
 function disableSetup(disabled){app.querySelectorAll('#setup-form input, #setup-form button, #setup-form select').forEach(el=>el.disabled=disabled);const resume=app.querySelector('#resume-exam');if(resume)resume.disabled=disabled;app.querySelectorAll('[data-mode]').forEach(b=>b.disabled=disabled);}
 function showSetupError(message){const box=app.querySelector('#setup-error');if(box){box.textContent=message;box.hidden=!message;}}
-function finishAbandoned(){if(exam.phase==='preparing')exam.phase='between';if(exam.phase==='paused')resumePausedExam(exam);if(exam.phase==='running'){const mode=exam.breakMode;exam.breakMode='free';submitSection(exam);exam.breakMode=mode;}while(exam.phase==='between'){const s=exam.sections[exam.sectionIndex];s.elapsed=0;s.endedAt=Date.now();if(exam.sectionIndex+1<exam.sections.length)exam.sectionIndex++;else exam.phase='finished';}if(['ready','preparing'].includes(exam.phase))exam.phase='finished';exam.abandoned=true;rememberResult(exam);persist();}
+function finishAbandoned(){if(exam.phase==='paused')resumePausedExam(exam);if(exam.phase==='preparing')exam.phase='between';if(exam.phase==='running'){const mode=exam.breakMode;exam.breakMode='free';submitSection(exam);exam.breakMode=mode;}while(exam.phase==='between'){const s=exam.sections[exam.sectionIndex];s.elapsed=0;s.endedAt=Date.now();if(exam.sectionIndex+1<exam.sections.length)exam.sectionIndex++;else exam.phase='finished';}if(['ready','preparing'].includes(exam.phase))exam.phase='finished';exam.abandoned=true;rememberResult(exam);persist();}
 async function resumeExam(){
   if(busy)return;
   if(synchronizeExam(exam)){persist();if(exam.phase==='finished'){rememberResult(exam);return renderResult();}}
@@ -122,11 +122,11 @@ function showPreparation(){
 }
 function showPause(){
   clearInterval(timer);app.classList.add('exam-paused');
-  const remaining=Math.max(0,exam.deadline-exam.pausedAt),s=exam.sections[exam.sectionIndex];
+  const preparing=exam.pausedPhase==='preparing',remaining=Math.max(0,(preparing?exam.preparationDeadline:exam.deadline)-exam.pausedAt),s=exam.sections[exam.sectionIndex];
   const dialog=document.createElement('dialog');dialog.id='pause-dialog';dialog.className='pause-dialog';dialog.setAttribute('aria-labelledby','pause-title');
-  dialog.innerHTML=`<span class="eyebrow">TAKE A PAUSE</span><span class="pause-icon" aria-hidden="true">Ⅱ</span><h2 id="pause-title">일시정지 중</h2><p class="subtle">과목과 문제 풀이 시간이 멈춰 있습니다.</p><div class="pause-info"><strong>${e(s.name)}</strong><span>남은 시간</span><b>${formatTime(Math.ceil(remaining/1000)*1000)}</b></div><button id="resume-paused" class="primary wide"><span aria-hidden="true">▶</span> 시험 재개</button>`;
+  dialog.innerHTML=`<span class="eyebrow">TAKE A PAUSE</span><span class="pause-icon" aria-hidden="true">Ⅱ</span><h2 id="pause-title">일시정지 중</h2><p class="subtle">${preparing?'준비 카운트다운이 멈춰 있습니다.':'과목과 문제 풀이 시간이 멈춰 있습니다.'}</p><div class="pause-info"><strong>${e(s.name)}</strong><span>${preparing?'남은 준비 시간':'남은 시간'}</span><b>${formatTime(Math.ceil(remaining/1000)*1000)}</b></div><button id="resume-paused" class="primary wide"><span aria-hidden="true">▶</span> ${preparing?'준비 재개':'시험 재개'}</button>`;
   dialog.oncancel=event=>event.preventDefault();app.append(dialog);dialog.showModal();
-  dialog.querySelector('#resume-paused').onclick=()=>{if(!resumePausedExam(exam))return;persist();dialog.close();dialog.remove();app.classList.remove('exam-paused');tick();timer=setInterval(tick,200);app.querySelector('#pause-exam')?.focus();};
+  dialog.querySelector('#resume-paused').onclick=()=>{if(!resumePausedExam(exam))return;persist();dialog.close();dialog.remove();renderExam();};
 }
 function tick(){if(!exam||view!=='exam')return;if(exam.phase==='preparing'){const counter=app.querySelector('#preparation-count');if(counter)counter.textContent=String(Math.max(0,Math.ceil((exam.preparationDeadline-Date.now())/1000))).padStart(2,'0');}if(synchronizeExam(exam)){persist();afterChange();return;}if(exam.phase!=='running')return;const now=Date.now(),left=Math.max(0,exam.deadline-now),s=exam.sections[exam.sectionIndex];app.querySelector('#remaining-time').textContent=formatTime(Math.ceil(left/1000)*1000);app.querySelector('#remaining-time').classList.toggle('urgent',left<60000);app.querySelector('#question-time').textContent=formatTime(now-exam.questionStartedAt);app.querySelector('#timer-fill').style.width=100*left/(s.minutes*60000)+'%';}
 function afterChange(){dismissActionDialogs();document.querySelector('#help-dialog').close();if(exam.phase==='finished'){rememberResult(exam);renderResult();}else renderExam();}
@@ -171,9 +171,34 @@ function renderHistory(){if(pdfViewer){pdfPosition=pdfViewer.position();pdfViewe
 function download(name,content,type){const blob=new Blob([content],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name.replace(/[\\/:*?"<>|]/g,'_');a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);}
 document.querySelector('#nav-setup').onclick=()=>{if(busy)return;if(view==='exam'&&['running','paused','preparing'].includes(exam.phase))return notify('응시 중에는 시험 화면을 유지합니다. 과목을 제출한 뒤 이동할 수 있습니다.');renderSetup();};
 document.querySelector('#nav-history').onclick=()=>{if(busy)return;if(['running','paused','preparing'].includes(exam?.phase))return notify('응시 중에는 기록 화면으로 이동할 수 없습니다.');renderHistory();};
-document.querySelector('#nav-help').onclick=()=>document.querySelector('#help-dialog').showModal();document.querySelector('.close-dialog').onclick=()=>document.querySelector('#help-dialog').close();
+function openHelp(){
+  const dialog=document.querySelector('#help-dialog');if(dialog.open)return;
+  helpResume=null;
+  if(locked&&exam&&['running','preparing'].includes(exam.phase)){
+    pauseForNavigation(exam);clearInterval(timer);persist();
+    if(exam.phase==='paused')helpResume={exam,pausedAt:exam.pausedAt};
+    else if(view==='exam')afterChange();
+  }
+  dialog.showModal();document.documentElement.classList.add('help-open');document.body.classList.add('help-open');
+}
+function closeHelp(){
+  document.documentElement.classList.remove('help-open');document.body.classList.remove('help-open');
+  const resume=helpResume;helpResume=null;
+  if(locked&&resume?.exam===exam&&exam?.phase==='paused'&&exam.pausedAt===resume.pausedAt&&resumePausedExam(exam)){
+    persist();if(view==='exam')renderExam();
+  }
+}
+document.querySelector('#nav-help').onclick=openHelp;
+document.querySelector('#help-dialog .close-dialog').onclick=()=>document.querySelector('#help-dialog').close();
+document.querySelector('#help-dialog').addEventListener('close',closeHelp);
 document.querySelector('.brand').onclick=event=>{event.preventDefault();if(locked&&!busy&&!['running','paused','preparing'].includes(exam?.phase))renderSetup();};
 document.addEventListener('visibilitychange',()=>{if(locked&&exam&&synchronizeExam(exam)){persist();if(view==='exam')afterChange();}});
-window.addEventListener('beforeunload',()=>{if(locked&&['running','paused','preparing'].includes(exam?.phase))persist();});
-window.addEventListener('pagehide',()=>{locked=false;releaseLock?.();});
+function pauseOnLeave(){
+  helpResume=null;
+  if(!locked||!exam)return;
+  if(pauseForNavigation(exam))clearInterval(timer);
+  persist();
+}
+window.addEventListener('beforeunload',pauseOnLeave);
+window.addEventListener('pagehide',()=>{pauseOnLeave();locked=false;releaseLock?.();});
 window.addEventListener('pageshow',event=>{if(event.persisted)location.reload();});
