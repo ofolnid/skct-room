@@ -30,3 +30,17 @@ export function tagMarkup(exam){
   const card=g=>`<article class="type-card"><h4>${e(g.tag)}</h4><div class="type-rate"><strong>${g.rate==null?'—':Math.round(g.rate*100)+'%'}</strong><span>정답률</span><small>${g.correct} / ${g.attempts}문제</small></div><p class="type-time">평균 <b>${g.attempts?formatTime(g.average):'—'}</b> / 기준 ${formatTime(g.target)}${g.attempts&&g.average>g.target?` <span>+${Math.ceil((g.average-g.target)/1000)}초</span>`:''}</p><div class="type-flags"><span class="flag-uncertain">헷갈림 ${g.uncertainCount}개 · ${percent(g.uncertainCount,g.attempts)}</span><span class="flag-guessed">찍었음 ${g.guessedCount}개 · ${percent(g.guessedCount,g.attempts)}</span></div><p class="type-foot">표시 없는 정답 ${g.unmarked}개${g.unreached?` · 미도달 ${g.unreached}개`:''}</p></article>`;
   return `<section class="panel type-analysis"><div class="section-title"><h2>유형별 강점·보완점</h2><span class="pill">개인 기록 기준</span></div><p class="subtle">영역별로, 먼저 보완할 유형부터 확인하세요. 헷갈림·찍었음은 오답의 표시도 포함합니다.</p>${[...new Set(groups.map(g=>g.area))].map(area=>`<section class="type-area"><h3>${e(area)}</h3>${categories.map(([label,title,kind])=>{const items=groups.filter(g=>g.area===area&&g.label===label);if(!items.length)return '';const content=`<div class="type-grid">${items.map(card).join('')}</div>`;return kind==='sample'?`<details class="type-category type-sample"><summary>표본 부족 · ${items.length}개 유형</summary>${content}</details>`:`<div class="type-category type-${kind}"><h4 class="type-category-title">${title} <small>${items.length}개 유형</small></h4>${content}</div>`;}).join('')}</section>`).join('')}<details class="type-rules"><summary>분류 기준 자세히 보기</summary><p class="subtle">${e(tagNote)} 정답률과 표시 비율은 채점한 도달 문항을 분모로 사용합니다. 정확도 보완과 시간 보완이 겹치면 정확도 그룹에 한 번만 표시합니다.</p></details></section>`;
 }
+
+export function tagCopy(exam){
+ const groups=tagSummary(exam);if(!groups.length)return {text:'',html:''};
+ const labels=[['보완할 유형','정확도 보완 필요'],['시간 관리','시간 관리 보완 필요'],['재확인','헷갈림·찍었음 재확인'],['강점 후보','강점 후보'],['연습 중','연습 중'],['표본 부족','표본 부족']];
+ const blocks=[];
+ for(const area of new Set(groups.map(g=>g.area))){
+   blocks.push({heading:area,level:3});
+   for(const [label,title] of labels){
+     const items=groups.filter(g=>g.area===area&&g.label===label);if(!items.length)continue;blocks.push({heading:title,level:4});
+     for(const g of items){const pct=n=>g.attempts?Math.round(n/g.attempts*100)+'%':'—';blocks.push({line:`${g.tag} · 정답률 ${g.rate==null?'—':pct(g.correct)} (${g.correct}/${g.attempts}문제) · 헷갈림 전체 ${g.uncertainCount}개 (${pct(g.uncertainCount)}) · 찍었음 전체 ${g.guessedCount}개 (${pct(g.guessedCount)}) · 평균 ${g.attempts?formatTime(g.average):'—'} / 기준 ${formatTime(g.target)} · 미도달 ${g.unreached}개`});}
+   }
+ }
+ return {text:'\n\n유형별 강점·보완점\n'+tagNote+'\n'+blocks.map(b=>b.heading?'\n'+b.heading:b.line).join('\n'),html:'<h2>유형별 강점·보완점</h2><p>'+e(tagNote)+'</p>'+blocks.map(b=>b.heading?`<h${b.level}>${e(b.heading)}</h${b.level}>`:`<p>${e(b.line)}</p>`).join('')};
+}

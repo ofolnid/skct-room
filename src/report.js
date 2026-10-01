@@ -1,4 +1,4 @@
-import {tagMarkup,tagTable,tagRows,tagHeaders,tagNote} from './tags.js';
+import {tagMarkup,tagCopy,tagRows,tagHeaders,tagNote} from './tags.js';
 import { resultOf, sectionSummary, formatTime, escapeHTML as e } from './core.js';
 export function totals(exam) {
   return exam.sections.reduce((out,s)=>{const sum=sectionSummary(s);for(const k of Object.keys(sum))out[k]=(out[k]||0)+sum[k];out.elapsed+=s.elapsed;out.graded+=s.key?s.count:0;return out;},{elapsed:0,graded:0});
@@ -49,9 +49,9 @@ export function resultRows(exam) {
 export function copyContent(exam) {
   const t=totals(exam), headers=resultHeaders(exam);
   const rows=resultRows(exam), title=exam.title;
-  const typeText=tagRows(exam).length?'\n\n유형별 강점·보완점\n'+tagNote+'\n'+[tagHeaders,...tagRows(exam)].map(r=>r.join('\t')).join('\n'):'';
+  const typeCopy=tagCopy(exam),typeText=typeCopy.text;
   const text=`${title}\n응시일: ${new Date(exam.createdAt).toLocaleString('ko-KR')}\n정답 ${t.graded?t.correct:'미채점'} / ${t.graded||t.total} · 총 풀이 ${formatTime(t.elapsed)}\n\n${[headers,...rows].map(r=>r.join('\t')).join('\n')}${typeText}\n\n회차 메모\n${exam.reflection||'—'}\n\n기준 시간: 과목 제한시간 ÷ 문항 수`;
-  const html=`<h1>${e(title)}</h1><p>응시일: ${e(new Date(exam.createdAt).toLocaleString('ko-KR'))} · 총 풀이 ${formatTime(t.elapsed)}</p><table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(v=>`<td>${e(v)}</td>`).join('')}</tr>`).join('')}</tbody></table>${tagRows(exam).length?`<h2>유형별 강점·보완점</h2><p>${e(tagNote)}</p>${tagTable(exam)}`:""}<h2>회차 메모</h2><p>${e(exam.reflection||'—').replace(/\n/g,'<br>')}</p><p>기준 시간 = 과목 제한시간 ÷ 문항 수</p>`;
+  const html=`<h1>${e(title)}</h1><p>응시일: ${e(new Date(exam.createdAt).toLocaleString('ko-KR'))} · 총 풀이 ${formatTime(t.elapsed)}</p><table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(v=>`<td>${e(v)}</td>`).join('')}</tr>`).join('')}</tbody></table>${typeCopy.html}<h2>회차 메모</h2><p>${e(exam.reflection||'—').replace(/\n/g,'<br>')}</p><p>기준 시간 = 과목 제한시간 ÷ 문항 수</p>`;
   return {text,html};
 }
 export function csvContent(exam) {
