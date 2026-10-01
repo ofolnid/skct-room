@@ -110,7 +110,25 @@ function renderBreak(){
   const dialog=app.querySelector('#break-dialog');dialog.oncancel=event=>event.preventDefault();dialog.showModal();
   app.querySelector('#begin-next').onclick=()=>{dialog.close();if(!prepared || !hasPage(examRange().start)){renderSetup();notify('같은 PDF를 선택한 뒤 이어보기로 다음 영역을 준비해 주세요.');return;}startSection(exam);persist();renderExam();};
 }
-function renderResult(){if(pdfViewer){pdfViewer.destroy();pdfViewer=null;}window.scrollTo(0,0);view='result';nav();clearInterval(timer);app.className='result-page';app.innerHTML=reportMarkup(exam);app.querySelector('#reflection').value=exam.reflection||'';app.querySelector('#reflection').oninput=event=>{exam.reflection=event.target.value;persist();rememberResult(exam);app.querySelector('.reflection .print-only').textContent=exam.reflection||'작성한 메모가 없습니다.';};
+function renderAnswerEntry(){
+  if(pdfViewer){pdfViewer.destroy();pdfViewer=null;}
+  clearInterval(timer);view='result';nav();window.scrollTo(0,0);app.className='result-page';
+  app.innerHTML=`<section class="panel empty-state"><h1>시험 제출 완료</h1><p>정답을 입력하면 채점 결과와 문제별 풀이 시간을 확인할 수 있습니다.</p></section><dialog id="answer-entry-dialog" aria-labelledby="answer-entry-title"><button class="close-dialog secondary" id="close-answer-entry" aria-label="정답 입력 닫기">✕</button><span class="eyebrow">READY TO REVIEW</span><h2 id="answer-entry-title">정답을 입력해 주세요</h2><p class="subtle">${e(exam.title)}<br>1~5 숫자를 공백이나 쉼표로 구분해 붙여넣으세요.</p><form id="answer-entry-form"><div class="key-fields">${exam.sections.map((s,i)=>`<label>${e(s.name)} · ${s.count}문제<textarea data-entry="${i}" rows="2" maxlength="2000" required placeholder="1 3 2 5 …" aria-label="${e(s.name)} 정답 입력">${s.key?s.key.join(' '):''}</textarea></label>`).join('')}</div><p id="answer-entry-error" class="form-error" role="alert" hidden></p><button type="submit" class="primary wide">채점하고 결과 보기 →</button></form></dialog>`;
+  const dialog=app.querySelector('#answer-entry-dialog');
+  app.querySelector('#close-answer-entry').onclick=()=>dialog.close();
+  dialog.onclose=()=>{if(exam.sections.some(s=>!s.key))renderHistory();};
+  app.querySelector('#answer-entry-form').oninput=()=>{dialog.querySelector('#answer-entry-error').hidden=true;};
+  app.querySelector('#answer-entry-form').onsubmit=event=>{
+    event.preventDefault();const fields=[...dialog.querySelectorAll('[data-entry]')],keys=[];
+    for(let i=0;i<fields.length;i++){
+      try{keys.push(parseKey(fields[i].value,exam.sections[i].count));}
+      catch(err){const error=dialog.querySelector('#answer-entry-error');error.textContent=`${exam.sections[i].name}: ${err.message}`;error.hidden=false;fields[i].focus();return;}
+    }
+    exam.sections.forEach((s,i)=>s.key=keys[i]);persist();rememberResult(exam);dialog.onclose=null;dialog.close();renderResult();
+  };
+  dialog.showModal();[...dialog.querySelectorAll('[data-entry]')].find((field,i)=>!exam.sections[i].key)?.focus();
+}
+function renderResult(){if(exam.sections.some(s=>!s.key))return renderAnswerEntry();if(pdfViewer){pdfViewer.destroy();pdfViewer=null;}window.scrollTo(0,0);view='result';nav();clearInterval(timer);app.className='result-page';app.innerHTML=reportMarkup(exam);app.querySelector('#reflection').value=exam.reflection||'';app.querySelector('#reflection').oninput=event=>{exam.reflection=event.target.value;persist();rememberResult(exam);app.querySelector('.reflection .print-only').textContent=exam.reflection||'작성한 메모가 없습니다.';};
   app.querySelector('#grade-form').onsubmit=event=>{event.preventDefault();try{const keys=[...app.querySelectorAll('[data-grade]')].map((input,i)=>input.value.trim()?parseKey(input.value,exam.sections[i].count):null);exam.sections.forEach((s,i)=>s.key=keys[i]);persist();rememberResult(exam);renderResult();notify('채점 결과를 갱신했습니다.');}catch(err){notify(err.message);}};
 
   app.querySelector('#copy-result').onclick=async()=>{const {text,html}=copyContent(exam);try{if(globalThis.ClipboardItem&&navigator.clipboard.write){await navigator.clipboard.write([new ClipboardItem({'text/plain':new Blob([text],{type:'text/plain'}),'text/html':new Blob([html],{type:'text/html'})})]);}else await navigator.clipboard.writeText(text);notify('결과를 복사했습니다. 노션 등에 붙여넣으세요.');}catch{const d=document.createElement('dialog');d.innerHTML='<h2>결과 직접 복사</h2><p>아래 내용을 전체 선택해 복사하세요.</p><textarea rows="15" aria-label="복사할 결과"></textarea><button class="primary">닫기</button>';document.body.append(d);d.querySelector('textarea').value=text;d.querySelector('button').onclick=()=>d.close();d.onclose=()=>d.remove();d.showModal();d.querySelector('textarea').select();}};

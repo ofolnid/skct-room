@@ -27,3 +27,5 @@ body.exam-active .exam-page{max-width:none;padding:8px 12px 12px;height:calc(100
 
 #calc-history{height:38px;min-height:38px;overflow:hidden;text-align:right;color:var(--muted);font-size:10px;line-height:18px;margin-bottom:5px}#calc-history>div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.calculator-box:focus,.calculator-box:focus-visible,.calculator-box :focus,.calculator-box :focus-visible{outline:none;box-shadow:none}.calculator-box #calc-input:focus{border-color:var(--line)}
 @media(max-width:900px){.exam-active .tool-panel{height:385px}}
+
+#answer-entry-dialog .key-fields{grid-template-columns:1fr;margin:20px 0}#answer-entry-form>.primary{margin-top:16px}#answer-entry-dialog textarea{font-size:13px}
