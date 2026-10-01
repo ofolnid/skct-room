@@ -13,8 +13,8 @@ test('예전 설정 파일의 과목별 페이지는 하나의 전체 범위로 
   const checked=validateConfig({title:'예전 설정',sections:[{...subject,start:2,end:8},{...subject,name:'다음',start:9,end:15}]});
   assert.deepEqual(checked.pdfRange,{start:2,end:15});
 });
-function scratch(state){state.memo='풀이 메모';state.drawings=[{points:[[0,0],[1,1]],color:'#000',width:3}];state.calculator={expression:'12+8',result:'20'};}
-function assertClear(state){assert.equal(state.memo,'');assert.deepEqual(state.drawings,[]);assert.deepEqual(state.calculator,{expression:'',result:'0'});}
+function scratch(state){state.memo='풀이 메모';state.drawings=[{points:[[0,0],[1,1]],color:'#000',width:3}];state.calculator={expression:'12+8',result:'20',completed:true,history:[{expression:'12+8',result:'20'}]};}
+function assertClear(state){assert.equal(state.memo,'');assert.deepEqual(state.drawings,[]);assert.deepEqual(state.calculator,{expression:'',result:'0',completed:false,history:[]});}
 test('확정 및 건너뜀은 모든 풀이 도구를 초기화한다',()=>{
   const state=createExam(config,'hash');startSection(state,0);scratch(state);
   assert.equal(advance(state,false,500),false);assert.equal(state.memo,'풀이 메모');
