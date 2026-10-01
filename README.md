@@ -105,3 +105,9 @@ npm run build
 시험 상태 전이·답안 잠금·마감 시각 제출·건너뜀/미도달·직렬화 복구·정답 입력 검증·정적 참고 정보 검증·영역별 정답 매칭·75분 상한·휴식 중 시간 정지·헷갈림/찍었음 잠금·HTML/CSV 안전 처리·계산기의 연산 순서를 자동 검증합니다. PDF 화면·복사·인쇄·뷰포트의 실제 확인 기록은 `VALIDATION.md`를 참고하세요.
 
 PDF 처리 의존성: Mozilla PDF.js (`pdfjs-dist`, Apache-2.0). 라이선스는 빌드 시 `dist/vendor/PDFJS-LICENSE.txt`에 포함됩니다.
+
+## GitHub Pages
+
+배포 대상은 `ofolnid/skct-room`이며 `.github/workflows/pages.yml`은 이 저장소에서만 실행됩니다. `main`의 변경을 테스트·검사·빌드한 뒤 `dist/`만 GitHub Pages에 게시합니다. 저장소 Settings → Pages → Source는 **GitHub Actions**를 선택합니다. 예상 사이트 주소는 `https://ofolnid.github.io/skct-room/`입니다(게시 완료 후 실제 주소 확인 필요).
+
+GitHub 전송 전 `gh api user --jq .login` 결과가 정확히 `ofolnid`인지 확인하세요. 다른 계정이나 계정을 확인하지 못한 상태에서는 저장소 생성·push·배포를 진행하지 않습니다. 개인 PDF·OCR·분석용 임시 파일은 이 저장소 밖에 있으며 게시물에 포함하지 않습니다.

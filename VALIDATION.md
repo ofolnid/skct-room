@@ -156,3 +156,10 @@ Codex in-app browser에서 자체 작성한 합성 PDF와 가상 정답 데이�
 
 - 준비 순서를 채점 방식 → 내 PDF → 응시 범위/영역으로 변경. 등록 세트를 선택하면 제목 입력란을 숨기고 세트 이름을 currentConfig 시험 제목으로 적용합니다. 직접 정답 입력은 제목을 필수 입력하며 두 방식/영역 전환에서도 작성한 수동 제목을 보존합니다. 응시 방식 버튼을 form 안으로 옮기면서 type=button을 명시해 예기치 않은 제출을 방지했습니다.
 - 실제 브라우저에서 수동 제목 입력→해커스 선택(필수입력 해제)→영역별 자료해석→직접입력(기존제목 복원)→다른 세트 선택(이름 갱신) 확인. 관련 제목선택/빈제목 회귀 포함40개 테스트·문법검사·빌드 PASS. 브라우저 내보내기 download 이벤트 대기는 도구 timeout으로 완료되지 않아 다운로드 파일 확인은 PASS로 주장하지 않습니다. 제목 전달 경로는 실제 currentConfig 함수 회귀 검사로 확인했습니다. 기존 채점·시간·PDF 범위 로직 변경 없음. 국소 UI self-review로 검증, 별도 verifier 없음.
+
+## GitHub Pages 업로드 준비
+
+- 대상은 ofolnid/skct-room만 허용. 양 workflow job에 정확한 repository guard를 두고 main push 또는 수동 실행으로 tests/check/build 후 dist만 게시하도록 준비했습니다. configure-pages 조회용 pages:read는 build에, 게시용 pages:write/id-token:write는 deploy에 한정합니다.
+- 독립 verifier가 전체 Git history의 원문 PDF/OCR/해설 본문/시크릿 불포함, 정답·유형·출처 데이터 범위, 프로젝트 하위경로 상대 URL, artifact 범위와 계정 guard를 확인했습니다. 차단 finding 없음. build pages:read 권장 사항 반영.
+- YAML 구문은 Ruby YAML 파서로 확인, /skct-room/ 하위경로 주요 asset URL 및 파일 존재 확인, 구문 검사와 diff 검사 PASS. 기존40개 테스트·빌드 증거는 앱 변경이 없어 재사용합니다. GitHub Actions 실제 실행은 아직 수행하지 않았습니다.
+- CLI 계정 전환은 실패했으며 네트워크 허용 읽기 요청도 인증 계정 확인 대신 rate-limit 응답이었습니다. 사용자에게 ofolnid 전환/재로그인 요청 상태입니다. 인증 확인 전 저장소 생성·push·Pages 설정·공개 게시 없음. aoooec 계정으로 진행하지 않습니다.
