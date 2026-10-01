@@ -1,6 +1,6 @@
 # 로컬 검증 기록
 
-검증일: 2026-10-01. 새 로컬 프로젝트의 기능 브랜치 `feat/local-exam-room`. 원격 저장소·PR·Issue·Project는 아직 연결되지 않았고 공개 전송·배포는 수행하지 않았습니다.
+검증일: 2026-10-01. 아래는 기능 브랜치 `feat/local-exam-room`에서 순서대로 축적한 검증 기록입니다. 초기 기록의 미배포 상태 이후 진행된 공개 배포 검증은 문서 마지막에 기록했습니다.
 
 ## 자동 검증
 
@@ -163,3 +163,11 @@ Codex in-app browser에서 자체 작성한 합성 PDF와 가상 정답 데이�
 - 독립 verifier가 전체 Git history의 원문 PDF/OCR/해설 본문/시크릿 불포함, 정답·유형·출처 데이터 범위, 프로젝트 하위경로 상대 URL, artifact 범위와 계정 guard를 확인했습니다. 차단 finding 없음. build pages:read 권장 사항 반영.
 - YAML 구문은 Ruby YAML 파서로 확인, /skct-room/ 하위경로 주요 asset URL 및 파일 존재 확인, 구문 검사와 diff 검사 PASS. 기존40개 테스트·빌드 증거는 앱 변경이 없어 재사용합니다. GitHub Actions 실제 실행은 아직 수행하지 않았습니다.
 - CLI 계정 전환은 실패했으며 네트워크 허용 읽기 요청도 인증 계정 확인 대신 rate-limit 응답이었습니다. 사용자에게 ofolnid 전환/재로그인 요청 상태입니다. 인증 확인 전 저장소 생성·push·Pages 설정·공개 게시 없음. aoooec 계정으로 진행하지 않습니다.
+
+## GitHub Pages 실제 배포 검증
+
+- 사용자 재로그인 후 네트워크 허용 `gh api user`에서 실제 login `ofolnid` 확인. 사용자가 지정한 공개 저장소 `ofolnid/skct-room`을 생성하고 검증한 기능 브랜치 HEAD를 빈 원격 main에 최초 업로드했습니다. aoooec 계정에는 업로드하지 않았습니다.
+- 첫 Actions 실행은 Pages 사이트 설정 전 실행되어 configure-pages의 404로 실패했습니다. 코드 검사·빌드 실패가 아닌 배포 설정 순서 문제입니다. Pages 게시 방식을 workflow로 설정한 후 같은 실행을 재시도했고 build/deploy 모두 성공했습니다. 실행: https://github.com/ofolnid/skct-room/actions/runs/36819639161 (앱/CI commit e403b4a).
+- GitHub Linux/Node 22에서 npm ci, 40개 테스트, JavaScript 구문 검사, 정적 빌드 및 게시 성공. 실제 https://ofolnid.github.io/skct-room/ 에서 준비 화면, 정답 세트 8개, 등록 세트 제목 연결을 확인했습니다.
+- 배포 주소에서 합성 4페이지 PDF를 로컬 선택하고 기본 범위 1~4, 전체 사전 준비, 시험 시작 전 15:00, PDF 이미지 로딩을 확인했습니다. 1280×720 viewport에서 PDF 이미지 natural size 3201×4529 및 렌더 완료를 확인했고 수집된 warning/error는 없었습니다. 개인 문제집 원문은 공개 전송하지 않았습니다.
+- 앱 코드 변경이 없으므로 기존 독립 verifier와 로컬 시험/결과 회귀 증거를 재사용합니다. 실제 브라우저 인쇄 저장·노션 붙여넣기와 모든 사용자 PDF에 대한 기존 검증 한계는 여전히 적용됩니다.
