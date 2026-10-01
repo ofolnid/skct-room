@@ -69,6 +69,8 @@
   .tools-box textarea,#drawing{background:#fbfbfb}
   .calc-grid button{background:#f0f0f0;color:#515151}
   .calc-grid button:hover{background:#e8e8e8}
+  .calc-grid button[data-calc="AC"]{background:#d7d7d7;color:#333}
+  .calc-grid button[data-calc="AC"]:hover{background:#c8c8c8}
   .calc-grid .equals{background:#171717;color:#fff}
   .calculator-heading span{color:#6d6d6d}
   .calculator-box:focus,.calculator-box:focus-visible,.calculator-box :focus,.calculator-box :focus-visible{outline:none;box-shadow:none}
