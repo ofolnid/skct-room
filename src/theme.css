@@ -91,8 +91,8 @@
   .question-top .result-flags .flag-uncertain{color:#704300;background:#fff0c2}
   .question-top .result-flags .flag-guessed{color:#583899;background:#ece3ff}
   .result-tag{font-weight:750;border-radius:4px;padding:3px 2px}
-  .is-correct .result-tag{color:#fff;background:#16734b}
-  .is-wrong .result-tag{color:#fff;background:#b42335}
+  .is-correct .result-tag{color:#075c3a;background:transparent}
+  .is-wrong .result-tag{color:#a31b2c;background:transparent}
   .is-correct{border-left:3px solid #22855b}
   .is-wrong{border-left:3px solid #c53345}
   .correct{color:#075c3a;font-weight:700}
