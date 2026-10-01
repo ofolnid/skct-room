@@ -25,11 +25,37 @@ test('미채점은 강점 판정을 하지 않고 영역별로 별도 집계한�
 });
 test('태그와 분석을 화면·복사·CSV에 포함하고 HTML을 이스케이프한다',()=>{
   const exam=fixture();exam.sections[0].tags[0].push('<script>');const copy=copyContent(exam);
-  assert.match(copy.text,/유형별 강점·보완점/);assert.match(copy.text,/3문항 미만/);assert.match(copy.html,/해설 기반/);assert.match(csvContent(exam),/中복|중복/);assert.match(copy.html,/&lt;script&gt;/);assert.match(reportMarkup(exam),/유형별 강점·보완점/);assert.match(csvContent(exam),/문항 유형/);assert.match(csvContent(exam),/표본 부족/);assert.equal(resultRows(exam)[0].length,resultHeaders(exam).length);
+  assert.match(copy.text,/유형별 강점·보완점/);assert.match(copy.text,/2문항 미만/);assert.match(copy.html,/해설 기반/);assert.match(csvContent(exam),/中복|중복/);assert.match(copy.html,/&lt;script&gt;/);assert.match(reportMarkup(exam),/유형별 강점·보완점/);assert.match(csvContent(exam),/문항 유형/);assert.match(csvContent(exam),/표본 부족/);assert.equal(resultRows(exam)[0].length,resultHeaders(exam).length);
 });
 
-test('영역별 유형 카드와 오답 표시 개수·비율을 함께 집계한다',()=>{
+test('영역별 유형 목록과 오답 표시 개수·비율을 함께 집계한다',()=>{
  const exam=fixture();exam.sections[0].items[0].uncertain=true;exam.sections[0].items[0].answer=2;
  const g=tagSummary(exam)[0];assert.equal(g.uncertainCount,1);assert.equal(g.uncertain,0);
  const html=tagMarkup(exam);assert.match(html,/type-area/);assert.match(html,/헷갈림 1개 · 33%/);assert.match(html,/<details class="type-category type-sample"/);assert.match(copyContent(exam).text,/헷갈림 전체/);
+});
+
+
+test('영역별 목록과 복사는 강점부터 분류하고 모든 유형과 참고 수치를 보존한다',()=>{
+ const names=['강점유형','정확도유형','시간유형','재확인유형','연습유형','표본유형'];
+ const items=[],tags=[];
+ names.forEach((name,g)=>{for(let i=0;i<(g===5?1:3);i++){tags.push([name]);items.push({status:'answered',answer:g===1?2:g===4&&i===0?2:1,ms:g===2?20000:1000,guessed:g===3});}});
+ const exam={sections:[{name:'언어추리',count:16,minutes:4,key:Array(16).fill(1),items,tags}]};
+ const markup=tagMarkup(exam),copy=copyContent({...exam,title:'시험',createdAt:0});
+ const order=['type-strength','type-accuracy','type-time','type-review','type-practice','type-sample'];
+ order.slice(1).forEach((c,i)=>assert.ok(markup.indexOf(order[i])<markup.indexOf(c)));
+ assert.equal((markup.match(/class="type-row"/g)||[]).length,6);assert.doesNotMatch(markup,/type-card|type-grid/);
+ assert.match(markup,/시간 단축 필요/);assert.match(markup,/\+5초/);
+ assert.ok(copy.text.indexOf('\n강점 후보\n')<copy.text.indexOf('\n정확도 보완 필요\n'));
+ for(const name of names){assert.ok(markup.includes(name));assert.ok(copy.text.includes(name));}
+});
+
+
+test('표본 경계는 채점한 도달 문항 0·1개는 부족, 2개부터 분석한다',()=>{
+ const exam=fixture();
+ exam.sections[0].items[2].status='unreached';
+ let groups=tagSummary(exam);assert.equal(groups[0].attempts,2);assert.notEqual(groups[0].label,'표본 부족');assert.equal(groups[1].attempts,0);assert.equal(groups[1].label,'표본 부족');
+ assert.match(tagMarkup(exam),/시간 기록 없음/);
+ exam.sections[0].items[1].status='unreached';groups=tagSummary(exam);assert.equal(groups[0].attempts,1);assert.equal(groups[0].label,'표본 부족');
+ exam.sections[0].items[1]={answer:1,status:'answered',ms:1000};assert.equal(tagSummary(exam)[0].label,'강점 후보');
+ exam.sections[0].items[0].answer=2;exam.sections[0].items[1].answer=2;assert.equal(tagSummary(exam)[0].label,'보완할 유형');
 });
