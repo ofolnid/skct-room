@@ -3,7 +3,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL('./vendor/pdf.worker.mjs', import.
 let pdfDocument=null, hash='', renderQueue=Promise.resolve();
 const pages=new Map();
 export async function openPDF(file) {
-  if(!file || file.size>250*1024*1024)throw new Error('PDF는 250MB 이하 파일을 선택해 주세요.');
+  if(!file || file.size>500*1024*1024)throw new Error('PDF는 500MB 이하 파일을 선택해 주세요.');
   await renderQueue;clearPages();if(pdfDocument){await pdfDocument.loadingTask.destroy();pdfDocument=null;}
   const bytes=new Uint8Array(await file.arrayBuffer());
   hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),b=>b.toString(16).padStart(2,'0')).join('');
