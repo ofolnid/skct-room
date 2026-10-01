@@ -19,3 +19,7 @@ export async function loadAnswerSets() {
   const data=await response.json();if(!Array.isArray(data) || data.length>200)throw new Error('정답 세트 파일 형식이 올바르지 않습니다.');
   const sets=data.map(validateAnswerSet);if(new Set(sets.map(s=>s.id)).size!==sets.length)throw new Error('정답 세트 ID가 중복되었습니다.');return sets;
 }
+
+export function clearAnswerMetadata(section) {
+  return {...section,key:null,tags:null,difficulty:null,correctRate:null,source:''};
+}
