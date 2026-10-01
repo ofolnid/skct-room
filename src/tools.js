@@ -1,3 +1,4 @@
+import { confirmAction } from './dialog.js';
 export function calculate(expression) {
   if (expression.length>200) throw new Error('수식이 너무 깁니다.');
   const clean=expression.replace(/\s/g,'').replace(/×/g,'*').replace(/÷/g,'/');
@@ -47,7 +48,7 @@ export function mountTools(container, state, onChange) {
   canvas.onpointerdown=e=>{ if(e.button!==0)return; canvas.setPointerCapture(e.pointerId);current={color:container.querySelector('#pen-color').value,width:Number(container.querySelector('#pen-width').value),points:[point(e)]};current.points.push([current.points[0][0]+0.0001,current.points[0][1]+0.0001]);repaint(); };
   canvas.onpointermove=e=>{if(!current)return; if(current.points.length<5000)current.points.push(point(e));repaint();};
   const end=()=>{if(!current)return;state.drawings.push(current);current=null;onChange();repaint();};canvas.onpointerup=end;canvas.onpointercancel=end;
-  container.querySelector('#clear-drawing').onclick=()=>{if(!state.drawings.length)return;if(confirm('그림판 내용을 모두 지울까요?')){state.drawings=[];onChange();repaint();}};
+  container.querySelector('#clear-drawing').onclick=async()=>{if(!state.drawings.length)return;if(await confirmAction('그림판 내용을 모두 지울까요?','모두 지우기')){state.drawings=[];onChange();repaint();}};
   container.querySelector('#undo-drawing').onclick=()=>{state.drawings.pop();onChange();repaint();};
   repaint();
 }

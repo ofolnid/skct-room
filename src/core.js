@@ -8,9 +8,25 @@ export function validateConfig(input) {
     if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start || end > 10000) throw new Error(`${s.name}: PDF 시작·끝 페이지를 확인해 주세요.`);
     if (!Number.isInteger(count) || count < 1 || count > 100 || !Number.isFinite(minutes) || minutes < 0.1 || minutes > 180) throw new Error(`${s.name}: 문항 수는 1~100개, 시간은 0.1~180분입니다.`);
     const key = s.key == null ? null : parseKey(s.key, count);
-    return { name: s.name.trim(), start, end, count, minutes, key };
+    const difficulty = s.difficulty == null ? null : validateMetadata(s.difficulty,count,'difficulty');
+    const correctRate = s.correctRate == null ? null : validateMetadata(s.correctRate,count,'correctRate');
+    return { name: s.name.trim(), start, end, count, minutes, key, difficulty, correctRate, source:typeof s.source==='string'?s.source.slice(0,200):'' };
   });
-  return { title: input.title.trim(), sections };
+  const mode=input.mode || 'custom';
+  if(!['custom','full','single'].includes(mode))throw new Error('응시 방식을 확인해 주세요.');
+  if(mode==='full' && sections.length!==5)throw new Error('전체 모의고사는 5개 영역으로 구성합니다.');
+  if(mode==='full' && new Set(sections.map(s=>s.name)).size!==5)throw new Error('전체 모의고사의 영역 이름이 중복되었습니다.');
+  if(mode==='single' && sections.length!==1)throw new Error('영역별 연습은 한 영역만 선택합니다.');
+  if(mode!=='custom' && sections.some(s=>s.minutes!==15 || s.count!==20))throw new Error('영역별 시험은 20문제·15분으로 구성합니다.');
+  return { title: input.title.trim(), mode, sections };
+}
+export function validateMetadata(values,count,type) {
+  if(!Array.isArray(values) || values.length!==count)throw new Error('문항별 참고 정보 개수가 문항 수와 다릅니다.');
+  return values.map(v=>{if(v==null)return null;
+    if(type==='difficulty' && ['쉬움','보통','어려움'].includes(v))return v;
+    if(type==='correctRate' && typeof v==='number' && Number.isFinite(v) && v>=0 && v<=100)return v;
+    throw new Error(type==='difficulty'?'난이도는 쉬움·보통·어려움 또는 null로 입력하세요.':'참고 정답률은 0~100 숫자 또는 null로 입력하세요.');
+  });
 }
 export function parseKey(input, count) {
   const values = Array.isArray(input) ? input : String(input).trim().split(/[\s,;]+/u);
@@ -19,16 +35,20 @@ export function parseKey(input, count) {
 }
 export function createExam(config, pdfHash, now = Date.now()) {
   config = validateConfig(config);
-  return { version: VERSION, id: crypto.randomUUID(), title: config.title, createdAt: now, pdfHash,
+  return { version: VERSION, id: crypto.randomUUID(), title: config.title, mode:config.mode, createdAt: now, pdfHash,
     sections: config.sections.map(s => ({ ...s, items: Array.from({length:s.count}, () => ({answer:null, status:'unreached', ms:0})), startedAt:null, endedAt:null, elapsed:0 })),
-    phase:'ready', sectionIndex:0, questionIndex:0, questionStartedAt:null, deadline:null, selection:null, memo:'', reflection:'', drawings:[] };
+    phase:'ready', sectionIndex:0, questionIndex:0, questionStartedAt:null, deadline:null, selection:null, selectionFlags:{uncertain:false,guessed:false}, memo:'', reflection:'', drawings:[] };
 }
 export function startSection(state, now = Date.now()) {
   if (!['ready','between'].includes(state.phase)) return false;
   const section = state.sections[state.sectionIndex];
-  state.phase = 'running'; state.questionIndex = 0; state.selection = null;
+  state.phase = 'running'; state.questionIndex = 0; state.selection = null;state.selectionFlags={uncertain:false,guessed:false};
   section.startedAt = now; state.questionStartedAt = now; state.deadline = now + section.minutes * 60000;
   return true;
+}
+export function toggleFlag(state,flag,now=Date.now()) {
+  if(expire(state,now) || state.phase!=='running' || !['uncertain','guessed'].includes(flag))return false;
+  state.selectionFlags ??= {uncertain:false,guessed:false};state.selectionFlags[flag]=!state.selectionFlags[flag];return true;
 }
 export function chooseAnswer(state, answer, now = Date.now()) {
   if (expire(state, now) || state.phase !== 'running' || !Number.isInteger(answer) || answer < 1 || answer > 5) return false;
@@ -36,7 +56,7 @@ export function chooseAnswer(state, answer, now = Date.now()) {
 }
 function recordCurrent(state, at, skip = false, reason = 'submitted') {
   const section = state.sections[state.sectionIndex];
-  section.items[state.questionIndex] = {answer:skip ? null : state.selection, status:skip ? 'skipped' : state.selection == null ? reason : 'answered', ms:Math.max(0, at - state.questionStartedAt)};
+  section.items[state.questionIndex] = {answer:skip ? null : state.selection, status:skip ? 'skipped' : state.selection == null ? reason : 'answered', ms:Math.max(0, at - state.questionStartedAt),uncertain:!!state.selectionFlags?.uncertain,guessed:!!state.selectionFlags?.guessed};
 }
 function closeSection(state, at) {
   const section = state.sections[state.sectionIndex];
@@ -50,7 +70,7 @@ export function advance(state, skip = false, now = Date.now(), expectedIndex = s
   if (!skip && state.selection == null) return false;
   recordCurrent(state, now, skip);
   if (state.questionIndex + 1 === state.sections[state.sectionIndex].count) closeSection(state, now);
-  else { state.questionIndex++; state.questionStartedAt = now; state.selection = null; }
+  else { state.questionIndex++; state.questionStartedAt = now; state.selection = null;state.selectionFlags={uncertain:false,guessed:false}; }
   return true;
 }
 export function expire(state, now = Date.now()) {
@@ -70,13 +90,14 @@ export function resultOf(section, index) {
   return item.answer === section.key[index] ? '정답' : '오답';
 }
 export function sectionSummary(section) {
-  let correct=0, wrong=0, answered=0, skipped=0, unreached=0, unanswered=0, over=0;
+  let correct=0, wrong=0, answered=0, skipped=0, unreached=0, unanswered=0, over=0,guessedCorrect=0,uncertainCorrect=0,unmarkedCorrect=0;
   section.items.forEach((item, i) => {
     const r=resultOf(section,i); correct += r==='정답'; wrong += r==='오답'; answered += item.answer != null;
     skipped += item.status==='skipped'; unreached += item.status==='unreached'; unanswered += item.answer==null && item.status!=='unreached';
     over += item.ms > section.minutes*60000/section.count;
+    if(r==='정답'){guessedCorrect+=!!item.guessed;uncertainCorrect+=!!item.uncertain;unmarkedCorrect+=!item.guessed&&!item.uncertain;}
   });
-  return {correct,wrong,answered,skipped,unreached,unanswered,over,total:section.count};
+  return {correct,wrong,answered,skipped,unreached,unanswered,over,guessedCorrect,uncertainCorrect,unmarkedCorrect,total:section.count};
 }
 export function formatTime(ms) {
   const seconds = Math.max(0, Math.floor(ms/1000));

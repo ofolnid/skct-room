@@ -7,7 +7,9 @@
     "build": "node scripts/build.mjs",
     "start": "node scripts/serve.mjs",
     "test": "node --test tests/*.test.mjs",
-    "check": "node --check src/app.js && node --check src/core.js && node --check src/pdf.js && node --check src/report.js && node --check src/tools.js && node --check src/storage.js"
+    "check": "node --check src/app.js && node --check src/core.js && node --check src/pdf.js && node --check src/report.js && node --check src/tools.js && node --check src/storage.js && node --check src/answer-sets.js && node --check src/dialog.js"
   },
-  "dependencies": { "pdfjs-dist": "6.3.289" }
+  "dependencies": {
+    "pdfjs-dist": "6.3.289"
+  }
 }
