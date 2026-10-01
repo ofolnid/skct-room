@@ -1,0 +1,13 @@
+{
+  "name": "skct-room",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "node scripts/serve.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "check": "node --check src/app.js && node --check src/core.js && node --check src/pdf.js && node --check src/report.js && node --check src/tools.js && node --check src/storage.js"
+  },
+  "dependencies": { "pdfjs-dist": "6.3.289" }
+}

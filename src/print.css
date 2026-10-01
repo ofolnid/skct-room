@@ -1,0 +1,9 @@
+@page{size:A4;margin:14mm}
+body{background:#fff!important;color:#24352b!important;font-size:10pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.no-print,.site-header,#toast,dialog,.filters,#filter-empty{display:none!important}
+.print-only{display:block!important;white-space:pre-wrap;font-size:10pt}
+main.result-page{max-width:none;padding:0;margin:0}
+.result-heading{display:block;margin:0 0 18px}.result-heading h1{font-size:22pt}.eyebrow{font-size:8pt}
+.summary-grid{grid-template-columns:repeat(4,1fr);gap:8px}.stat{padding:12px;border-radius:8px;box-shadow:none;break-inside:avoid}.stat strong{font-size:23pt}.stat p{font-size:8pt}
+.panel{padding:16px;border-radius:10px;box-shadow:none;margin-bottom:14px}.section-title{margin-bottom:12px}.section-title h2,h2{font-size:12pt}.insight-grid{grid-template-columns:1fr 1fr}.insight{padding:12px;break-inside:avoid}
+.chart-section{break-inside:avoid}.time-chart{max-height:155px}.question-grid{grid-template-columns:repeat(4,1fr);gap:8px}.question-card{padding:12px;break-inside:avoid;page-break-inside:avoid}.question-card[hidden]{display:block!important}.question-top{font-size:9pt}.answer-comparison{font-size:8pt}.time-comparison strong{font-size:15pt}.detail-section h3{break-after:avoid}.detail-section h3 small{font-size:8pt}.table-scroll{overflow:visible}thead{display:table-header-group}tr{break-inside:avoid}th,td{font-size:9pt;padding:8px}.report-footnote{font-size:8pt}.reflection{break-inside:avoid}
