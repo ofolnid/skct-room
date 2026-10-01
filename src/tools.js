@@ -36,7 +36,12 @@ export function mountTools(container, state, onChange) {
     history.forEach(entry=>{const row=document.createElement('div');row.textContent=`${entry.expression} = ${entry.result}`;box.append(row);});
   }
   function saveCalc(){state.calculator={expression:input.value,result:result.textContent,completed,history};onChange();}
-  function fresh(){if(completed){expression='';input.value='';result.textContent='0';completed=false;}}
+  function fresh(key){
+    if(!completed)return;
+    if(!/^[+\-*/×÷%]$/.test(key)&&key!=='+/-'){expression='';input.value='';}
+    else input.setSelectionRange(input.value.length,input.value.length);
+    result.textContent='0';completed=false;
+  }
   function clear(){expression='';input.value='';result.textContent='0';completed=false;saveCalc();}
   function erase(){if(completed)result.textContent='0';completed=false;expression=input.value.slice(0,-1);input.value=expression;saveCalc();}
   function equals(){
@@ -48,7 +53,7 @@ export function mountTools(container, state, onChange) {
     }catch(err){result.textContent=err.message;}
     saveCalc();
   }
-  input.onbeforeinput=event=>{if(completed&&event.inputType.startsWith('insert'))fresh();};
+  input.onbeforeinput=event=>{if(completed&&event.inputType.startsWith('insert'))fresh(event.data);};
   input.oninput=()=>{if(completed)result.textContent='0';expression=input.value;completed=false;saveCalc();};
   container.querySelector('.calculator-box').onkeydown=event=>{
     if(event.metaKey||event.ctrlKey||event.altKey)return;
@@ -56,7 +61,7 @@ export function mountTools(container, state, onChange) {
     if(event.key==='Escape'){event.preventDefault();clear();return;}
     if(event.target===input)return;
     if(/^[0-9.+\-*/()%]$/.test(event.key)||event.key==='Backspace'){
-      event.preventDefault();if(event.key==='Backspace'){erase();return;}fresh();expression=input.value+event.key;
+      event.preventDefault();if(event.key==='Backspace'){erase();return;}fresh(event.key);expression=input.value+event.key;
       input.value=expression.slice(0,200);saveCalc();
     }
   };
@@ -65,7 +70,7 @@ export function mountTools(container, state, onChange) {
     if(key==='='){equals();return;}
     if(key==='AC'){clear();input.focus();return;}
     if(key==='backspace'){erase();input.focus();return;}
-    fresh();
+    fresh(key);
     if(key==='+/-')expression=input.value.startsWith('-(')?input.value.slice(2,-1):`-(${input.value||'0'})`;
     else expression=input.value.length<200?input.value+key:input.value;
     input.value=expression;saveCalc();input.focus();
