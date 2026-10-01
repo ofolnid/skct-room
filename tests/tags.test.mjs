@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {validateTags,createExam} from '../src/core.js';
 import {validateAnswerSet,applyAnswerSet} from '../src/answer-sets.js';
-import {tagSummary} from '../src/tags.js';
+import {tagSummary,tagMarkup} from '../src/tags.js';
 import {copyContent,csvContent,resultHeaders,resultRows,reportMarkup} from '../src/report.js';
 const section={name:'언어추리',count:4,minutes:1,key:[1,1,1,1],tags:[['참·거짓'],['참·거짓'],['참·거짓','조건 추론'],['조건 추론']]};
 function fixture(){const exam=createExam({title:'태그 검증',pdfRange:{start:1,end:1},sections:[section]},'test');exam.sections[0].items=[{answer:1,status:'answered',ms:1000},{answer:1,status:'answered',ms:1000,guessed:true},{answer:2,status:'answered',ms:1000},{answer:null,status:'unreached',ms:0}];return exam;}
@@ -26,4 +26,10 @@ test('미채점은 강점 판정을 하지 않고 영역별로 별도 집계한�
 test('태그와 분석을 화면·복사·CSV에 포함하고 HTML을 이스케이프한다',()=>{
   const exam=fixture();exam.sections[0].tags[0].push('<script>');const copy=copyContent(exam);
   assert.match(copy.text,/유형별 강점·보완점/);assert.match(copy.text,/3문항 미만/);assert.match(copy.html,/해설 기반/);assert.match(csvContent(exam),/中복|중복/);assert.match(copy.html,/&lt;script&gt;/);assert.match(reportMarkup(exam),/유형별 강점·보완점/);assert.match(csvContent(exam),/문항 유형/);assert.match(csvContent(exam),/표본 부족/);assert.equal(resultRows(exam)[0].length,resultHeaders(exam).length);
+});
+
+test('영역별 유형 카드와 오답 표시 개수·비율을 함께 집계한다',()=>{
+ const exam=fixture();exam.sections[0].items[0].uncertain=true;exam.sections[0].items[0].answer=2;
+ const g=tagSummary(exam)[0];assert.equal(g.uncertainCount,1);assert.equal(g.uncertain,0);
+ const html=tagMarkup(exam);assert.match(html,/type-area/);assert.match(html,/헷갈림 1개 · 33%/);assert.match(html,/<details class="type-category type-sample"/);assert.match(copyContent(exam).text,/헷갈림 전체/);
 });
