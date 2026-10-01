@@ -1,17 +1,17 @@
-import { parseKey,validateMetadata } from './core.js';
+import { parseKey,validateMetadata,validateTags } from './core.js';
 export function validateAnswerSet(input) {
   if(!input || typeof input.id!=='string' || !/^[a-zA-Z0-9_-]{1,80}$/.test(input.id) || typeof input.title!=='string' || !input.title.trim() || input.title.length>120)throw new Error('정답 세트 ID와 시험 이름을 확인하세요.');
   if(!Array.isArray(input.sections) || input.sections.length<1 || input.sections.length>8)throw new Error('정답 세트의 과목 수를 확인하세요.');
   if(new Set(input.sections.map(s=>s?.name?.trim())).size!==input.sections.length)throw new Error('정답 세트의 영역 이름이 중복되었습니다.');
   return {id:input.id,title:input.title.trim(),sections:input.sections.map(s=>{
     if(!s || typeof s.name!=='string' || !s.name.trim() || s.name.length>40 || !Number.isInteger(s.count) || s.count<1 || s.count>100)throw new Error('정답 세트의 과목 이름·문항 수를 확인하세요.');
-    return {name:s.name.trim(),count:s.count,key:parseKey(s.key,s.count),difficulty:s.difficulty==null?null:validateMetadata(s.difficulty,s.count,'difficulty'),correctRate:s.correctRate==null?null:validateMetadata(s.correctRate,s.count,'correctRate'),source:typeof s.source==='string'?s.source.slice(0,200):''};
+    return {name:s.name.trim(),count:s.count,key:parseKey(s.key,s.count),difficulty:s.difficulty==null?null:validateMetadata(s.difficulty,s.count,'difficulty'),correctRate:s.correctRate==null?null:validateMetadata(s.correctRate,s.count,'correctRate'),tags:s.tags==null?null:validateTags(s.tags,s.count),source:typeof s.source==='string'?s.source.slice(0,200):''};
   })};
 }
 export function applyAnswerSet(config,set) {
   const matched=config.sections.map(s=>set.sections.find(k=>k.name===s.name.trim() && k.count===s.count));
   if(matched.some(s=>!s))throw new Error('정답 세트의 영역 이름·문항 수와 시험 설정이 다릅니다.');
-  return {...config,sections:config.sections.map((s,i)=>({...s,key:matched[i].key,difficulty:matched[i].difficulty,correctRate:matched[i].correctRate,source:matched[i].source}))};
+  return {...config,sections:config.sections.map((s,i)=>({...s,key:matched[i].key,difficulty:matched[i].difficulty,correctRate:matched[i].correctRate,tags:matched[i].tags,source:matched[i].source}))};
 }
 export async function loadAnswerSets() {
   const response=await fetch(new URL('./answer-sets.json',import.meta.url));

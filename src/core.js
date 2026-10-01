@@ -13,7 +13,7 @@ export function validateConfig(input) {
     const key = s.key == null ? null : parseKey(s.key, count);
     const difficulty = s.difficulty == null ? null : validateMetadata(s.difficulty,count,'difficulty');
     const correctRate = s.correctRate == null ? null : validateMetadata(s.correctRate,count,'correctRate');
-    return { name: s.name.trim(), start, end, count, minutes, key, difficulty, correctRate, source:typeof s.source==='string'?s.source.slice(0,200):'' };
+    return { name: s.name.trim(), start, end, count, minutes, key, difficulty, correctRate, tags:s.tags==null?null:validateTags(s.tags,count), source:typeof s.source==='string'?s.source.slice(0,200):'' };
   });
   const mode=input.mode || 'custom';
   if(!['custom','full','single'].includes(mode))throw new Error('응시 방식을 확인해 주세요.');
@@ -29,6 +29,14 @@ export function validateMetadata(values,count,type) {
     if(type==='difficulty' && ['쉬움','보통','어려움'].includes(v))return v;
     if(type==='correctRate' && typeof v==='number' && Number.isFinite(v) && v>=0 && v<=100)return v;
     throw new Error(type==='difficulty'?'난이도는 쉬움·보통·어려움 또는 null로 입력하세요.':'참고 정답률은 0~100 숫자 또는 null로 입력하세요.');
+  });
+}
+export function validateTags(values,count) {
+  if(!Array.isArray(values)||values.length!==count)throw new Error('유형 태그 개수가 문항 수와 다릅니다.');
+  return values.map(tags=>{
+    if(!Array.isArray(tags)||tags.length>4)throw new Error('문항별 유형 태그는 배열로 최대 4개까지 입력하세요.');
+    const clean=tags.map(tag=>{if(typeof tag!=='string'||!tag.trim()||tag.trim().length>24)throw new Error('유형 태그는 1~24자 문자열입니다.');return tag.trim();});
+    if(new Set(clean).size!==clean.length)throw new Error('문항의 유형 태그가 중복되었습니다.');return clean;
   });
 }
 export function parseKey(input, count) {
