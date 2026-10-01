@@ -23,3 +23,8 @@ export async function loadAnswerSets() {
 export function clearAnswerMetadata(section) {
   return {...section,key:null,tags:null,difficulty:null,correctRate:null,source:''};
 }
+
+export function regradeAnswerSet(exam,set) {
+  if(exam.phase!=='finished')throw new Error('시험 종료 후 정답 세트를 변경할 수 있습니다.');
+  return {...applyAnswerSet(exam,set),title:set.title};
+}

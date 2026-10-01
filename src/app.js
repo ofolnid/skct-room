@@ -1,6 +1,6 @@
 import { validateConfig, createExam, beginPreparation, synchronizeExam, pauseExam, resumePausedExam, chooseAnswer, advance, submitSection, toggleFlag, parseKey, formatTime, escapeHTML as e } from './core.js';
 import { confirmAction,dismissActionDialogs } from './dialog.js';
-import { loadAnswerSets,applyAnswerSet,clearAnswerMetadata } from './answer-sets.js';
+import { loadAnswerSets,applyAnswerSet,clearAnswerMetadata,regradeAnswerSet } from './answer-sets.js';
 import { load, save, storageAvailable, rememberResult, savedResults } from './storage.js';
 import { openPDF, preparePDF, hasPage, mountPDFViewer, clearPages } from './pdf.js';
 import { toolsMarkup, mountTools } from './tools.js';
@@ -154,7 +154,10 @@ function renderAnswerEntry(){
   };
   dialog.showModal();[...dialog.querySelectorAll('[data-entry]')].find((field,i)=>!exam.sections[i].key)?.focus();
 }
-function renderResult(){if(exam.sections.some(s=>!s.key))return renderAnswerEntry();if(pdfViewer){pdfViewer.destroy();pdfViewer=null;}window.scrollTo(0,0);view='result';nav();clearInterval(timer);app.className='result-page';app.innerHTML=reportMarkup(exam);app.querySelector('#reflection').value=exam.reflection||'';app.querySelector('#reflection').oninput=event=>{exam.reflection=event.target.value;persist();rememberResult(exam);app.querySelector('.reflection .print-only').textContent=exam.reflection||'작성한 메모가 없습니다.';};
+function renderResult(){if(exam.sections.some(s=>!s.key))return renderAnswerEntry();if(pdfViewer){pdfViewer.destroy();pdfViewer=null;}window.scrollTo(0,0);view='result';nav();clearInterval(timer);app.className='result-page';app.innerHTML=reportMarkup(exam,library);app.querySelector('#reflection').value=exam.reflection||'';app.querySelector('#reflection').oninput=event=>{exam.reflection=event.target.value;persist();rememberResult(exam);app.querySelector('.reflection .print-only').textContent=exam.reflection||'작성한 메모가 없습니다.';};
+  const resultKey=app.querySelector('#result-key-select'),regradeButton=app.querySelector('#regrade-set');
+  resultKey.onchange=()=>{regradeButton.disabled=!resultKey.value;};
+  regradeButton.onclick=()=>{try{const set=library.find(k=>k.id===resultKey.value);if(!set)throw new Error('정답 세트를 선택하세요.');exam=regradeAnswerSet(exam,set);persist();rememberResult(exam);renderResult();notify('선택한 정답 세트로 재채점했습니다.');}catch(err){notify(err.message);}};
   app.querySelector('#grade-form').onsubmit=event=>{event.preventDefault();try{const keys=[...app.querySelectorAll('[data-grade]')].map((input,i)=>input.value.trim()?parseKey(input.value,exam.sections[i].count):null);exam.sections.forEach((s,i)=>s.key=keys[i]);persist();rememberResult(exam);renderResult();notify('채점 결과를 갱신했습니다.');}catch(err){notify(err.message);}};
 
   app.querySelector('#copy-result').onclick=async()=>{const {text,html}=copyContent(exam);try{if(globalThis.ClipboardItem&&navigator.clipboard.write){await navigator.clipboard.write([new ClipboardItem({'text/plain':new Blob([text],{type:'text/plain'}),'text/html':new Blob([html],{type:'text/html'})})]);}else await navigator.clipboard.writeText(text);notify('결과를 복사했습니다. 노션 등에 붙여넣으세요.');}catch{const d=document.createElement('dialog');d.innerHTML='<h2>결과 직접 복사</h2><p>아래 내용을 전체 선택해 복사하세요.</p><textarea rows="15" aria-label="복사할 결과"></textarea><button class="primary">닫기</button>';document.body.append(d);d.querySelector('textarea').value=text;d.querySelector('button').onclick=()=>d.close();d.onclose=()=>d.remove();d.showModal();d.querySelector('textarea').select();}};
