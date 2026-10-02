@@ -31,7 +31,7 @@ test('태그와 분석을 화면·복사·CSV에 포함하고 HTML을 이스케�
 test('영역별 유형 목록과 오답 표시 개수·비율을 함께 집계한다',()=>{
  const exam=fixture();exam.sections[0].items[0].uncertain=true;exam.sections[0].items[0].answer=2;
  const g=tagSummary(exam)[0];assert.equal(g.uncertainCount,1);assert.equal(g.uncertain,0);
- const html=tagMarkup(exam);assert.match(html,/type-area/);assert.match(html,/헷갈림 1개 · 33%/);assert.match(html,/<details class="type-category type-sample"/);assert.match(copyContent(exam).text,/헷갈림 전체/);
+ const html=tagMarkup(exam);assert.match(html,/type-area/);assert.match(html,/data-label="헷갈림"><span>1개 · 33%/);assert.doesNotMatch(html,/<span>헷갈림 |<span>찍었음 /);assert.match(html,/type-table-heading/);assert.match(html,/<details class="type-category type-sample"/);assert.match(copyContent(exam).text,/헷갈림 전체/);
 });
 
 
