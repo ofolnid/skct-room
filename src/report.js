@@ -13,10 +13,10 @@ export function timeChart(section) {
 function referenceMarkup(exam) {
   const sections=exam.sections.filter(s=>s.difficulty?.some(v=>v!=null) || s.correctRate?.some(v=>v!=null));
   if(!sections.length)return '';
-  return `<section class="panel"><div class="section-title"><h2>해설집 참고 정보와 내 결과</h2><span class="pill">등록된 문항만 분석</span></div>${sections.map(s=>{
+  return `<section class="panel"><div class="section-title"><h2>해설집 참고 정보와 내 결과</h2><span class="pill">등록된 문항만 분석</span></div><p class="subtle">난이도는 AI 추정 또는 출판사 표시 기준이며, 난이도·정답률은 사이트 응시자 통계가 아닙니다.</p>${sections.map(s=>{
     const easyWrong=s.items.filter((item,i)=>s.difficulty?.[i]==='쉬움' && resultOf(s,i)==='오답').length;
     const groups=['쉬움','보통','어려움'].map(d=>{const indexes=s.items.map((_,i)=>i).filter(i=>s.difficulty?.[i]===d),correct=indexes.filter(i=>resultOf(s,i)==='정답').length;return indexes.length?`<div class="difficulty-row"><span>${d}</span><div class="difficulty-track"><i style="width:${s.key?correct/indexes.length*100:0}%"></i></div><span>${s.key?Math.round(correct/indexes.length*100)+'%':'미채점'} (${correct}/${indexes.length})</span></div>`:'';}).join('');
-    return `<div class="reference-section"><h3>${e(s.name)}</h3><p class="subtle">${e(s.source || '정답 세트에 입력한 참고 정보')} · 난이도·정답률은 사이트 응시자 통계가 아닙니다.</p>${groups?`<div class="difficulty-summary"><strong>난이도별 내 정답률</strong>${groups}<p class="subtle">쉬움으로 등록된 문제 중 오답 ${easyWrong}개</p></div>`:''}${s.correctRate?.some(v=>v!=null)?`<p class="subtle">문항별 참고 정답률은 아래 상세 결과에 표시됩니다. 참고값으로 난이도를 자동 판정하지 않습니다.</p>`:''}</div>`;
+    return `<div class="reference-section"><h3>${e(s.name)}</h3>${groups?`<div class="difficulty-summary"><strong>난이도별 내 정답률</strong>${groups}<p class="subtle">쉬움으로 등록된 문제 중 오답 ${easyWrong}개</p></div>`:''}${s.correctRate?.some(v=>v!=null)?`<p class="subtle">문항별 참고 정답률은 아래 상세 결과에 표시됩니다. 참고값으로 난이도를 자동 판정하지 않습니다.</p>`:''}</div>`;
   }).join('')}</section>`;
 }
 export function reportMarkup(exam,answerSets=[]) {

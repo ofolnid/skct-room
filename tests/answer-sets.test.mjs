@@ -8,7 +8,7 @@ test('배포 정답 세트의 선택적 정보와 0% 참고값을 보존한다',
   const set=validateAnswerSet(input);assert.deepEqual(set.sections[0].correctRate,[90,null,0]);
   const exam=createExam({title:set.title,sections:set.sections.map(s=>({...s,start:1,end:1,minutes:1}))},'test');
   startSection(exam,0);submitSection(exam,1000);const markup=reportMarkup(exam);
-  assert.match(markup,/참고 정답률 · <strong>0%/);assert.match(markup,/직접 입력한 참고 자료/);
+  assert.match(markup,/참고 정답률 · <strong>0%/);assert.doesNotMatch(markup,/직접 입력한 참고 자료/);assert.match(markup,/난이도는 AI 추정 또는 출판사 표시 기준/);assert.equal((markup.match(/사이트 응시자 통계가 아닙니다/g)||[]).length,1);
   assert.equal(markup.includes('난이도별 내 정답률'),true);
   assert.match(markup,/class="question-difficulty">쉬움/);assert.match(markup,/class="question-difficulty">어려움/);assert.match(markup,/class="question-difficulty">미분류/);
   assert.equal((markup.match(/class="question-difficulty"/g)||[]).length,3);
