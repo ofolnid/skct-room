@@ -1,24 +1,35 @@
 import { confirmAction } from './dialog.js';
-export function calculate(expression) {
-  if (expression.length>200) throw new Error('수식이 너무 깁니다.');
+// Operation keys replace a pending operation; signed operands use parentheses.
+const normalizeInput=value=>value.replace(/[+\-*/×÷]{2,}/g,ops=>ops.at(-1)).replace(/\d*\.[\d.]*/g,number=>{const dot=number.indexOf('.');return number.slice(0,dot+1)+number.slice(dot+1).replace(/\./g,'');});
+function evaluateCalculation(expression) {
+  if(expression.length>200)throw new Error('수식이 너무 깁니다.');
   const clean=expression.replace(/\s/g,'').replace(/×/g,'*').replace(/÷/g,'/');
-  const tokens=clean.match(/(?:\d+(?:\.\d*)?|\.\d+)|[()+\-*/%]/g) || [];
-  if (tokens.join('')!==clean || !tokens.length) throw new Error('수식을 확인해 주세요.');
-  let i=0;
-  function primary() {
-    let v;
-    if (tokens[i]==='+') { i++; v=primary(); }
-    else if (tokens[i]==='-') { i++; v=-primary(); }
-    else if (tokens[i]==='(') { i++; v=sum(); if(tokens[i++]!==')') throw new Error('괄호를 확인해 주세요.'); }
-    else { const t=tokens[i++]; if(!t || !/^(?:\d|\.)/.test(t)) throw new Error('수식을 확인해 주세요.'); v=Number(t); }
-    while(tokens[i]==='%') { i++; v/=100; }
-    return v;
+  const tokens=clean.match(/(?:\d+(?:\.\d*)?|\.\d+)(?:e[+\-]?\d+)?|[()+\-*/%]/gi)||[];
+  if(tokens.join('')!==clean||!tokens.length)throw new Error('수식을 확인해 주세요.');
+  let i=0,repeat=null;
+  function primary(){
+    let operand;
+    if(tokens[i]==='+'||tokens[i]==='-'){const sign=tokens[i++];operand=primary();if(sign==='-')operand.value=-operand.value;}
+    else if(tokens[i]==='('){i++;operand={value:sum().value,percent:false};if(tokens[i++]!==')')throw new Error('괄호를 확인해 주세요.');}
+    else{const token=tokens[i++];if(!token||!/^(?:\d|\.)/.test(token))throw new Error('수식을 확인해 주세요.');operand={value:Number(token),percent:false};}
+    while(tokens[i]==='%'){i++;operand.value/=100;operand.percent=true;}
+    return operand;
   }
-  function product() { let v=primary(); while(['*','/'].includes(tokens[i])) { const op=tokens[i++],rhs=primary(); if(op==='/' && rhs===0) throw new Error('0으로 나눌 수 없습니다.'); v=op==='*'?v*rhs:v/rhs; } return v; }
-  function sum() { let v=product(); while(['+','-'].includes(tokens[i])) { const op=tokens[i++],rhs=product(); v=op==='+'?v+rhs:v-rhs; } return v; }
-  const result=sum(); if(i!==tokens.length || !Number.isFinite(result)) throw new Error('계산할 수 없는 수식입니다.');
-  return Number(result.toPrecision(12));
+  function product(){
+    let left=primary();
+    while(['*','/'].includes(tokens[i])){const op=tokens[i++],right=primary().value;if(op==='/'&&right===0)throw new Error('0으로 나눌 수 없습니다.');left={value:op==='*'?left.value*right:left.value/right,percent:false};repeat={op,rhs:right};}
+    return left;
+  }
+  function sum(){
+    let left=product();
+    while(['+','-'].includes(tokens[i])){const op=tokens[i++],operand=product(),right=operand.percent?left.value*operand.value:operand.value;left={value:op==='+'?left.value+right:left.value-right,percent:false};repeat={op,rhs:right};}
+    return left;
+  }
+  const value=sum().value;
+  if(i!==tokens.length||!Number.isFinite(value))throw new Error('계산할 수 없는 수식입니다.');
+  return {value:Number(value.toPrecision(12)),repeat};
 }
+export function calculate(expression){return evaluateCalculation(expression).value;}
 export function mountTools(container, state, onChange) {
   const memo=container.querySelector('#scratch-note'); memo.value=state.memo || '';
   memo.oninput=()=>{state.memo=memo.value.slice(0,15000);onChange();};
@@ -29,39 +40,46 @@ export function mountTools(container, state, onChange) {
   state.calculator ??= {expression:'',result:'0'};
   let expression=state.calculator.expression, completed=!!state.calculator.completed;
   let history=(state.calculator.history||[]).slice(-2);
+  let repeat=state.calculator.repeat||null;
   const input=container.querySelector('#calc-input');input.value=expression;
   const result=container.querySelector('#calc-result');result.textContent=state.calculator.result;
   function renderHistory(){
     const box=container.querySelector('#calc-history');box.replaceChildren();
     history.forEach(entry=>{const row=document.createElement('div');row.textContent=`${entry.expression} = ${entry.result}`;box.append(row);});
   }
-  function saveCalc(){state.calculator={expression:input.value,result:result.textContent,completed,history};onChange();}
+  function saveCalc(){state.calculator={expression:input.value,result:result.textContent,completed,history,repeat};onChange();}
   function fresh(key){
-    if(!completed)return;
+    if(!completed){result.textContent='0';repeat=null;return;}
     if(!/^[+\-*/×÷%]$/.test(key)&&key!=='+/-'){expression='';input.value='';}
     else input.setSelectionRange(input.value.length,input.value.length);
-    result.textContent='0';completed=false;
+    result.textContent='0';completed=false;repeat=null;
   }
-  function clear(){expression='';input.value='';result.textContent='0';completed=false;saveCalc();}
-  function erase(){if(completed)result.textContent='0';completed=false;expression=input.value.slice(0,-1);input.value=expression;saveCalc();}
+  function clear(){expression='';input.value='';result.textContent='0';completed=false;repeat=null;saveCalc();}
+  function erase(){result.textContent='0';completed=false;repeat=null;expression=input.value.slice(0,-1);input.value=expression;saveCalc();}
   function equals(){
-    if(completed)return;
+    if(completed&&!repeat)return;
     try{
-      const original=input.value,value=String(calculate(original));
+      const original=completed?`${input.value}${repeat.op}(${repeat.rhs})`:input.value.replace(/[+\-*/×÷]$/,operator=>operator+'0');
+      const evaluation=evaluateCalculation(original),value=String(evaluation.value);repeat=evaluation.repeat;
       history=[...history,{expression:original,result:value}].slice(-2);renderHistory();
       result.textContent=value;expression=value;input.value=value;completed=true;
     }catch(err){result.textContent=err.message;}
     saveCalc();
   }
   input.onbeforeinput=event=>{if(completed&&event.inputType.startsWith('insert'))fresh(event.data);};
-  input.oninput=()=>{if(completed)result.textContent='0';expression=input.value;completed=false;saveCalc();};
+  input.oninput=()=>{
+    result.textContent='0';repeat=null;
+    const before=input.value,caret=input.selectionStart;expression=normalizeInput(before);
+    if(expression!==before){input.value=expression;if(caret!=null){const position=normalizeInput(before.slice(0,caret)).length;input.setSelectionRange(position,position);}}
+    completed=false;saveCalc();
+  };
   container.querySelector('.calculator-box').onkeydown=event=>{
     if(event.metaKey||event.ctrlKey||event.altKey)return;
     if(event.key==='Enter'){event.preventDefault();equals();return;}
     if(event.key==='Escape'){event.preventDefault();clear();return;}
     if(event.target===input)return;
     if(/^[0-9.+\-*/()%]$/.test(event.key)||event.key==='Backspace'){
-      event.preventDefault();if(event.key==='Backspace'){erase();return;}fresh(event.key);expression=input.value+event.key;
+      event.preventDefault();if(event.key==='Backspace'){erase();return;}fresh(event.key);expression=normalizeInput(input.value+event.key);
       input.value=expression.slice(0,200);saveCalc();
     }
   };
@@ -72,7 +90,7 @@ export function mountTools(container, state, onChange) {
     if(key==='backspace'){erase();input.focus();return;}
     fresh(key);
     if(key==='+/-')expression=input.value.startsWith('-(')?input.value.slice(2,-1):`-(${input.value||'0'})`;
-    else expression=input.value.length<200?input.value+key:input.value;
+    else {const next=normalizeInput(input.value+key);expression=next.length<=200?next:input.value;}
     input.value=expression;saveCalc();input.focus();
   });
   renderHistory();
