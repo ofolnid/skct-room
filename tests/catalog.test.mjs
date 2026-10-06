@@ -7,7 +7,7 @@ const data=JSON.parse(fs.readFileSync(new URL('../src/answer-sets.json',import.m
 const areas=['언어이해','자료해석','창의수리','언어추리','수열추리'];
 const hash=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const expected={
- eduwill:{key:'9f79cf2fcb207c8a73c9d586d46314ed8ddaf7cb7120d2022e76bea1a99b21fe',metadata:'85e51b93c173414cbbc285eab1e83cb8421a7edcf16a94e674303cad204526b7',difficulty:[83,254,63,0]},
+ eduwill:{key:'f8d22b147c782b244268b5c1327bfaeb3c5bb48484775fc298306e4698e214f7',metadata:'85e51b93c173414cbbc285eab1e83cb8421a7edcf16a94e674303cad204526b7',difficulty:[83,254,63,0]},
  hackers:{key:'90f10375290e98414be0fc7f7d9ab34c951f1c9363e738251149566d479ebe11',metadata:'a4e6ac52694b2302578691eca48dc261363dedab1144746b8e685f5f7df97476',difficulty:[43,301,55,1]},
  sidae:{key:'369827990737f5a33fce779c236eefac748889b5378fefe7f14b6be3027e5379',metadata:'6a2580d4393d4d0da129f7bad6bea7b2c1890143a9e4c0c1f88b574d01c0bc59',difficulty:[95,241,62,2]}
 };
@@ -51,4 +51,10 @@ test('사용자 정정: 에듀윌 2회 언어추리 10번 정답은 4다',()=>{
  const set=validateAnswerSet(data.find(s=>s.id==='eduwill-2026-mock-2'));
  const section=applyAnswerSet({sections:[{name:'언어추리',count:20}]},set).sections[0];
  assert.equal(section.key[9],4);
+});
+
+test('사용자 정정: 에듀윌 2회 창의수리 16~18번 정답은 1·5·2다',()=>{
+ const set=validateAnswerSet(data.find(s=>s.id==='eduwill-2026-mock-2'));
+ const section=applyAnswerSet({sections:[{name:'창의수리',count:20}]},set).sections[0];
+ assert.deepEqual(section.key.slice(15,18),[1,5,2]);
 });
