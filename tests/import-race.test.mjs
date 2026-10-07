@@ -11,7 +11,7 @@ const names=['언어이해','자료해석','창의수리','언어추리','수열
 const input={title:'설정 복구',mode:'single',pdfRange:{start:1,end:1},sections:[{name:'언어이해',count:20,minutes:15}]};
 function harness(){
   return new Function('validateConfig','subjectNames',`
-    let examMode='single',config={},fullSections=subjectNames.map(name=>({name})),singleSubject=subjectNames[0],selectedKey='',manualTitle='',library=[],view='setup',busy=false;
+    let timeMode='timed',examMode='single',config={},fullSections=subjectNames.map(name=>({name})),singleSubject=subjectNames[0],selectedKey='',manualTitle='',library=[],view='setup',busy=false;
     const disabled=[],messages=[];let renders=0;
     function disableSetup(value){disabled.push(value);}
     function renderSetup(){renders++;view='setup';}

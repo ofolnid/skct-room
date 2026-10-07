@@ -21,9 +21,11 @@ export function validateConfig(input) {
   if(mode==='full' && new Set(sections.map(s=>s.name)).size!==5)throw new Error('전체 모의고사의 영역 이름이 중복되었습니다.');
   if(mode==='single' && sections.length!==1)throw new Error('영역별 연습은 한 영역만 선택합니다.');
   if(mode!=='custom' && sections.some(s=>s.minutes!==15 || s.count!==20))throw new Error('영역별 시험은 20문제·15분으로 구성합니다.');
+  const timeMode=input.timeMode??'timed';
+  if(!['timed','practice'].includes(timeMode))throw new Error('시간 제한 모드를 확인해 주세요.');
   const breakMode=input.breakMode??'free';
   if(!['free','timed'].includes(breakMode))throw new Error('영역 사이 휴식 모드를 확인해 주세요.');
-  return { title: input.title.trim(), mode, breakMode:mode==='full'?breakMode:'free', pdfRange:{start,end}, sections };
+  return { title: input.title.trim(), mode, timeMode, breakMode:mode==='full'&&timeMode!=='practice'?breakMode:'free', pdfRange:{start,end}, sections };
 }
 export function validateMetadata(values,count,type) {
   if(!Array.isArray(values) || values.length!==count)throw new Error('문항별 참고 정보 개수가 문항 수와 다릅니다.');
@@ -48,7 +50,7 @@ export function parseKey(input, count) {
 }
 export function createExam(config, pdfHash, now = Date.now()) {
   config = validateConfig(config);
-  return { version: VERSION, id: crypto.randomUUID(), title: config.title, mode:config.mode, breakMode:config.breakMode, preparationDeadline:null, pdfRange:config.pdfRange, createdAt: now, pdfHash,
+  return { version: VERSION, id: crypto.randomUUID(), title: config.title, mode:config.mode, timeMode:config.timeMode, breakMode:config.breakMode, preparationDeadline:null, pdfRange:config.pdfRange, createdAt: now, pdfHash,
     sections: config.sections.map(s => ({ ...s, items: Array.from({length:s.count}, () => ({answer:null, status:'unreached', ms:0})), startedAt:null, endedAt:null, elapsed:0 })),
     phase:'ready', pausedAt:null, sectionIndex:0, questionIndex:0, questionStartedAt:null, deadline:null, selection:null, selectionFlags:{uncertain:false,guessed:false}, memo:'', reflection:'', drawings:[], calculator:{expression:'',result:'0',completed:false,history:[]} };
 }
@@ -61,7 +63,7 @@ export function startSection(state, now = Date.now()) {
   }
   const section = state.sections[state.sectionIndex];
   resetScratch(state);state.phase = 'running'; state.questionIndex = 0; state.selection = null;state.selectionFlags={uncertain:false,guessed:false};
-  section.startedAt = now;section.pausedMs=0;state.pausedAt=null;state.preparationDeadline=null; state.questionStartedAt = now; state.deadline = now + section.minutes * 60000;
+  section.startedAt = now;section.pausedMs=0;state.pausedAt=null;state.preparationDeadline=null; state.questionStartedAt = now; state.deadline = state.timeMode==='practice'?null:now + section.minutes * 60000;
   return true;
 }
 export function beginPreparation(state,now=Date.now()) {
@@ -89,7 +91,7 @@ export function resumePausedExam(state,now=Date.now()) {
   if(state.pausedPhase==='preparing'){
     state.preparationDeadline+=duration;state.phase='preparing';
   }else{
-    state.deadline+=duration;state.questionStartedAt+=duration;
+    if(state.deadline!=null)state.deadline+=duration;state.questionStartedAt+=duration;
     state.sections[state.sectionIndex].pausedMs=(state.sections[state.sectionIndex].pausedMs||0)+duration;
     state.phase='running';
   }
@@ -113,7 +115,7 @@ function closeSection(state, at) {
   resetScratch(state);state.selection = null; state.questionStartedAt = null; state.deadline = null;
   if (state.sectionIndex + 1 < state.sections.length) {
     state.sectionIndex++;state.phase='between';
-    if(state.mode==='full'&&state.breakMode==='timed'){state.phase='preparing';state.preparationDeadline=at+30000;}
+    if(state.mode==='full'&&state.timeMode!=='practice'&&state.breakMode==='timed'){state.phase='preparing';state.preparationDeadline=at+30000;}
   }
   else state.phase = 'finished';
 }
@@ -126,7 +128,7 @@ export function advance(state, skip = false, now = Date.now(), expectedIndex = s
   return true;
 }
 export function expire(state, now = Date.now()) {
-  if (state.phase !== 'running' || now < state.deadline) return false;
+  if (state.phase !== 'running' || state.timeMode==='practice' || state.deadline==null || now < state.deadline) return false;
   recordCurrent(state, state.deadline, false, 'timeout'); closeSection(state, state.deadline); return true;
 }
 export function submitSection(state, now = Date.now()) {
