@@ -10,7 +10,7 @@ const raw=data.find(s=>s.id==='linkareer-2026-h2-mock-2');
 const areas=['언어이해','자료해석','창의수리','언어추리','수열추리'];
 const hash=x=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
 test('링커리어 2026 하반기 2회 정답·제공 정답률 100개를 번호 순서대로 보존한다',()=>{
- assert.equal(data.length,15);assert.equal(raw.title,'링커리어 2026 하반기 2회');
+ assert.equal(data.length,16);assert.equal(raw.title,'링커리어 2026 하반기 2회');
  const set=validateAnswerSet(raw);assert.deepEqual(set.sections.map(s=>s.name),areas);
  assert.equal(hash(set.sections.flatMap(s=>s.key)),'a003a5a122832778a54b5016e812a6ec84d3ceace7899b356351b816b31c5934');
  assert.equal(hash(set.sections.flatMap(s=>s.correctRate)),'e2c8fe93bf9aac67bd36d93a198e17e416b8b8cd59851e3ffafe8e07850343bc');
