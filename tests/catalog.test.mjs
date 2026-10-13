@@ -29,10 +29,11 @@ for(const [publisher,reference] of Object.entries(expected))test(`${publisher} �
  }
 });
 test('12세트의 ID·회차 이름을 유지하고 참고 난이도 3문항은 보류한다',()=>{
- assert.equal(data.length,12);assert.equal(new Set(data.map(s=>s.id)).size,12);
+ const original=data.filter(s=>!s.id.startsWith('linkareer-'));
+ assert.equal(original.length,12);assert.equal(new Set(data.map(s=>s.id)).size,data.length);
  const titles={eduwill:'2026 에듀윌 통합 기본서 · 실전모의고사',hackers:'2026 해커스 통합 기본서 · 실전모의고사',sidae:'2026 시대에듀 통합기본서 · 최종점검 모의고사'};
  const missing=[];
- for(const set of data){
+ for(const set of original){
   const publisher=set.id.split('-')[0],round=Number(set.id.split('-').at(-1));
   assert.equal(set.title,`${titles[publisher]} ${round}회`);
   for(const s of set.sections)for(const [i,v] of s.difficulty.entries())if(v===null)missing.push([set.id,s.name,i+1]);
@@ -41,7 +42,7 @@ test('12세트의 ID·회차 이름을 유지하고 참고 난이도 3문항은 
 });
 
 test('창의수리 유형은 승인한 5묶음으로 통합하며 240문항을 중복 없이 보존한다',()=>{
- const sections=data.map(s=>s.sections.find(a=>a.name==='창의수리'));
+ const sections=data.filter(s=>!s.id.startsWith('linkareer-')).map(s=>s.sections.find(a=>a.name==='창의수리'));
  const counts=new Map();for(const a of sections)for(const tags of a.tags){assert.equal(tags.length,1);counts.set(tags[0],(counts.get(tags[0])||0)+1);}
  assert.equal(counts.size,16);assert.equal([...counts.values()].reduce((a,b)=>a+b),240);
  for(const [tag,n] of [['약수·배수',13],['평균',6],['방정식·부등식',25],['비율·증감',22],['손익·비용',33]])assert.equal(counts.get(tag),n);
