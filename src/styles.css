@@ -223,3 +223,6 @@ body.exam-active .exam-header-actions .secondary{display:inline-flex;align-items
 .pause-icon .pause-symbol{width:26px;height:26px}
 body.exam-active .exam-header-actions .secondary::after{content:none}
 @media(max-width:600px){.exam-header-actions .pause-label{display:none}}
+
+body.exam-active .tool-tabs .tool-undo{display:inline-flex;align-items:center;justify-content:center;padding:5px 7px}
+body.exam-active .tool-tabs .tool-undo + .tool-clear{margin-left:0}
