@@ -212,6 +212,14 @@ body.exam-active .pdf-toolbar{align-items:baseline}
 body.exam-active .pdf-toolbar .actions,body.exam-active .pdf-toolbar .zoom-label{align-items:baseline}
 
 /* Use the available screen height for the PDF and its answer bar. */
-body.exam-active .exam-page{height:100dvh;padding-bottom:0}
+body.exam-active .exam-page{height:100dvh;padding-bottom:20px}
+@media(min-width:901px){body.exam-active .tool-panel{max-height:760px;align-self:start}}
 body.exam-active .pdf-toolbar{padding-top:10px;padding-bottom:10px;min-height:52px}
 body.exam-active .pdf-toolbar .pdf-question{font-size:24px}
+
+/* Draw pause without font glyphs. */
+body.exam-active .exam-header-actions .secondary{display:inline-flex;align-items:center;gap:7px}
+.pause-symbol{display:inline-block;flex:none;vertical-align:middle}
+.pause-icon .pause-symbol{width:26px;height:26px}
+body.exam-active .exam-header-actions .secondary::after{content:none}
+@media(max-width:600px){.exam-header-actions .pause-label{display:none}}

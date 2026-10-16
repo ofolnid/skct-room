@@ -3,7 +3,7 @@ import { confirmAction,dismissActionDialogs } from './dialog.js';
 import { loadAnswerSets,applyAnswerSet,clearAnswerMetadata,regradeAnswerSet } from './answer-sets.js';
 import { load, save, storageAvailable, rememberResult, savedResults } from './storage.js';
 import { openPDF, preparePDF, hasPage, mountPDFViewer, clearPages } from './pdf.js';
-import { examMarkup,pdfAutoAdvanceMarkup,initialPDFOptionsMarkup } from './exam-layout.js';
+import { examMarkup,pdfAutoAdvanceMarkup,initialPDFOptionsMarkup,pauseIconMarkup } from './exam-layout.js';
 import { mountZoomInput,submitAnswerAndTurnPage,mountAutoAdvanceToggle,updateQuestionTime } from './pdf-controls.js';
 import { mountTools } from './tools.js';
 import { reportMarkup, totals, copyContent, csvContent } from './report.js';
@@ -142,7 +142,7 @@ function showPause(){
   clearInterval(timer);app.classList.add('exam-paused');
   const preparing=exam.pausedPhase==='preparing',remaining=Math.max(0,(preparing?exam.preparationDeadline:exam.deadline)-exam.pausedAt),s=exam.sections[exam.sectionIndex];
   const dialog=document.createElement('dialog');dialog.id='pause-dialog';dialog.className='pause-dialog';dialog.setAttribute('aria-labelledby','pause-title');
-  dialog.innerHTML=`<span class="eyebrow">TAKE A PAUSE</span><span class="pause-icon" aria-hidden="true">Ⅱ</span><h2 id="pause-title">일시정지 중</h2><p class="subtle">${preparing?'준비 카운트다운이 멈춰 있습니다.':'과목과 문제 풀이 시간이 멈춰 있습니다.'}</p><div class="pause-info"><strong>${e(s.name)}</strong><span>${preparing?'남은 준비 시간':exam.timeMode==='practice'?'풀이 시간':'남은 시간'}</span><b>${formatTime(!preparing&&exam.timeMode==='practice'?Math.max(0,exam.pausedAt-s.startedAt-(s.pausedMs||0)):Math.ceil(remaining/1000)*1000)}</b></div>${pdfAutoAdvanceMarkup('pause-auto-advance-pdf',exam.autoAdvancePDF)}<button id="resume-paused" class="primary wide"><span aria-hidden="true">▶</span> ${preparing?'준비 재개':'시험 재개'}</button>`;
+  dialog.innerHTML=`<span class="eyebrow">TAKE A PAUSE</span><span class="pause-icon" aria-hidden="true">${pauseIconMarkup}</span><h2 id="pause-title">일시정지 중</h2><p class="subtle">${preparing?'준비 카운트다운이 멈춰 있습니다.':'과목과 문제 풀이 시간이 멈춰 있습니다.'}</p><div class="pause-info"><strong>${e(s.name)}</strong><span>${preparing?'남은 준비 시간':exam.timeMode==='practice'?'풀이 시간':'남은 시간'}</span><b>${formatTime(!preparing&&exam.timeMode==='practice'?Math.max(0,exam.pausedAt-s.startedAt-(s.pausedMs||0)):Math.ceil(remaining/1000)*1000)}</b></div>${pdfAutoAdvanceMarkup('pause-auto-advance-pdf',exam.autoAdvancePDF)}<button id="resume-paused" class="primary wide"><span aria-hidden="true">▶</span> ${preparing?'준비 재개':'시험 재개'}</button>`;
   dialog.insertAdjacentHTML('beforeend','<button id="exit-fullscreen" class="secondary wide">전체화면 취소</button><div class="restart-actions"><button id="restart-section" class="secondary wide">현재 과목 리셋</button><button id="restart-all" class="text-button wide">전체 시험 리셋</button></div>');
   mountAutoAdvanceToggle(dialog.querySelector('#pause-auto-advance-pdf'),exam,persist);
   dialog.querySelector('#exit-fullscreen').onclick=async()=>{if(document.fullscreenElement)await document.exitFullscreen();};
