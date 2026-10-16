@@ -4,7 +4,7 @@ import { loadAnswerSets,applyAnswerSet,clearAnswerMetadata,regradeAnswerSet } fr
 import { load, save, storageAvailable, rememberResult, savedResults } from './storage.js';
 import { openPDF, preparePDF, hasPage, mountPDFViewer, clearPages } from './pdf.js';
 import { examMarkup,pdfAutoAdvanceMarkup,initialPDFOptionsMarkup } from './exam-layout.js';
-import { mountZoomInput,submitAnswerAndTurnPage,mountAutoAdvanceToggle } from './pdf-controls.js';
+import { mountZoomInput,submitAnswerAndTurnPage,mountAutoAdvanceToggle,updateQuestionTime } from './pdf-controls.js';
 import { mountTools } from './tools.js';
 import { reportMarkup, totals, copyContent, csvContent } from './report.js';
 const app=document.querySelector('#app');
@@ -106,7 +106,7 @@ function renderExam(){
   if(pdfViewer){pdfPosition=pdfViewer.position();pdfViewer.destroy();pdfViewer=null;}
   app.innerHTML=examMarkup(exam,zoom);
   const range=examRange();
-  function updatePage(n){pageNumber=n;app.querySelector('#page-label').textContent=`${n} / ${range.start}–${range.end}`;app.querySelector('#prev-page').disabled=n<=range.start;app.querySelector('#next-page').disabled=n>=range.end;if(pdfViewer)persist();}
+  function updatePage(n){pageNumber=n;app.querySelector('#page-label').textContent=`${n-range.start+1} / ${range.end-range.start+1}`;app.querySelector('#prev-page').disabled=n<=range.start;app.querySelector('#next-page').disabled=n>=range.end;if(pdfViewer)persist();}
   pdfViewer=mountPDFViewer(app.querySelector('#pdf-page'),range,zoom,pdfPosition,updatePage,notify);
   app.querySelector('#prev-page').onclick=()=>pdfViewer.go(pageNumber-1);
   app.querySelector('#next-page').onclick=()=>pdfViewer.go(pageNumber+1);
@@ -117,7 +117,6 @@ function renderExam(){
   const expected=exam.questionIndex;
   function proceed(skip){if(Date.now()-lastAction<300)return;lastAction=Date.now();submitAnswerAndTurnPage(exam,pdfViewer,skip,Date.now(),expected);persist();afterChange();}
   app.querySelector('#confirm-answer')?.addEventListener('click',()=>proceed(false));app.querySelector('#skip-answer')?.addEventListener('click',()=>proceed(true));
-  app.querySelector('#submit-section')?.addEventListener('click',async()=>{if(await confirmAction('현재 과목을 제출할까요? 선택 중인 답은 제출하고, 남은 문제는 미도달로 기록합니다.','과목 제출')){submitSection(exam);persist();afterChange();}});
   mountTools(app.querySelector('.tool-panel'),exam,persist);if(exam.phase==='preparing')showPreparation();if(exam.phase==='ready')showReady();tick();clearInterval(timer);timer=setInterval(tick,200);
   app.querySelector('#pause-exam')?.addEventListener('click',()=>{if(pauseExam(exam)){persist();showPause();}else{persist();afterChange();}});
   if(exam.phase==='paused')showPause();
@@ -174,7 +173,7 @@ async function requestRestart(scope,index=exam.sectionIndex){
   if(prepared&&pdfInfo?.hash===exam.pdfHash&&Array.from({length:range.end-range.start+1},(_,i)=>range.start+i).every(hasPage))renderExam();
   else{renderSetup();notify('리셋했습니다. 같은 PDF를 선택하고 이어보기를 눌러 주세요.');}
 }
-function tick(){if(!exam||view!=='exam')return;if(exam.phase==='preparing'){const counter=app.querySelector('#preparation-count');if(counter)counter.textContent=String(Math.max(0,Math.ceil((exam.preparationDeadline-Date.now())/1000))).padStart(2,'0');}if(synchronizeExam(exam)){persist();afterChange();return;}if(exam.phase!=='running')return;const now=Date.now(),left=Math.max(0,exam.deadline-now),s=exam.sections[exam.sectionIndex];app.querySelector('#remaining-time').textContent=formatTime(exam.timeMode==='practice'?Math.max(0,now-s.startedAt-(s.pausedMs||0)):Math.ceil(left/1000)*1000);app.querySelector('#remaining-time').classList.toggle('urgent',exam.timeMode!=='practice'&&left<60000);app.querySelector('#question-time').textContent=formatTime(now-exam.questionStartedAt);}
+function tick(){if(!exam||view!=='exam')return;if(exam.phase==='preparing'){const counter=app.querySelector('#preparation-count');if(counter)counter.textContent=String(Math.max(0,Math.ceil((exam.preparationDeadline-Date.now())/1000))).padStart(2,'0');}if(synchronizeExam(exam)){persist();afterChange();return;}if(exam.phase!=='running')return;const now=Date.now(),left=Math.max(0,exam.deadline-now),s=exam.sections[exam.sectionIndex];app.querySelector('#remaining-time').textContent=formatTime(exam.timeMode==='practice'?Math.max(0,now-s.startedAt-(s.pausedMs||0)):Math.ceil(left/1000)*1000);app.querySelector('#remaining-time').classList.toggle('urgent',exam.timeMode!=='practice'&&left<60000);updateQuestionTime(app.querySelector('#question-time'),now-exam.questionStartedAt);}
 function afterChange(){dismissActionDialogs();document.querySelector('#help-dialog').close();if(exam.phase==='finished'){rememberResult(exam);renderResult();}else renderExam();}
 function renderBreak(){
   if(!locked)return;if(pdfViewer){pdfPosition=pdfViewer.position();pdfViewer.destroy();pdfViewer=null;}clearInterval(timer);view='exam';nav();window.scrollTo(0,0);const next=exam.sections[exam.sectionIndex],previous=exam.sections[exam.sectionIndex-1];

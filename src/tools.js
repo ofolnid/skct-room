@@ -30,12 +30,21 @@ function evaluateCalculation(expression) {
   return {value:Number(value.toPrecision(12)),repeat};
 }
 export function calculate(expression){return evaluateCalculation(expression).value;}
+export function clearToolData(state,tool){
+  if(tool==='note')state.memo='';
+  else if(tool==='draw')state.drawings=[];
+  else return false;
+  return true;
+}
 export function mountTools(container, state, onChange) {
   const memo=container.querySelector('#scratch-note'); memo.value=state.memo || '';
   memo.oninput=()=>{state.memo=memo.value.slice(0,15000);onChange();};
+  const clearNote=container.querySelector('#clear-note');
+  if(clearNote)clearNote.onclick=async()=>{if(!state.memo)return;if(await confirmAction('메모장 내용을 모두 지울까요? 그림판은 유지됩니다.','메모 삭제')){clearToolData(state,'note');memo.value='';onChange();}};
   container.querySelectorAll('[data-tool]').forEach(button=>button.onclick=()=>{
     container.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b===button));
     container.querySelectorAll('[data-tool-panel]').forEach(p=>p.hidden=p.dataset.toolPanel!==button.dataset.tool);
+    container.querySelectorAll('[data-clear-tool]').forEach(b=>b.hidden=b.dataset.clearTool!==button.dataset.tool);
   });
   state.calculator ??= {expression:'',result:'0'};
   let expression=state.calculator.expression, completed=!!state.calculator.completed;
@@ -45,24 +54,29 @@ export function mountTools(container, state, onChange) {
   const result=container.querySelector('#calc-result');result.textContent=state.calculator.result;
   function renderHistory(){
     const box=container.querySelector('#calc-history');box.replaceChildren();
-    history.forEach(entry=>{const row=document.createElement('div');row.textContent=`answer: ${entry.result}`;box.append(row);});
+    const row=document.createElement('div');row.textContent=`Ans: ${history.at(-1)?.result??'0'}`;box.append(row);
   }
-  function saveCalc(){result.hidden=Number.isFinite(Number(result.textContent));state.calculator={expression:input.value,result:result.textContent,completed,history,repeat};onChange();}
+  function saveCalc(){result.hidden=false;result.className=Number.isFinite(Number(result.textContent))?'':'calc-error';state.calculator={expression:input.value,result:result.textContent,completed,history,repeat};onChange();}
   function fresh(key){
     if(!completed){result.textContent='0';repeat=null;return;}
     if(!/^[+\-*/×÷%]$/.test(key)&&key!=='+/-'){expression='';input.value='';}
-    else input.setSelectionRange(input.value.length,input.value.length);
+    else {expression=Number.isFinite(Number(result.textContent))?result.textContent:history.at(-1)?.result||'0';input.value=expression;input.setSelectionRange(input.value.length,input.value.length);}
     result.textContent='0';completed=false;repeat=null;
   }
+  function preview(){
+    const candidate=input.value.trim().replace(/[+\-*/×÷]$/,'');
+    if(!candidate||['+','-','.'].includes(candidate)){result.textContent='0';return;}
+    try{result.textContent=String(evaluateCalculation(candidate).value);}catch(err){result.textContent=err.message;}
+  }
   function clear(){history=[];renderHistory();expression='';input.value='';result.textContent='0';completed=false;repeat=null;saveCalc();}
-  function erase(){result.textContent='0';completed=false;repeat=null;expression=input.value.slice(0,-1);input.value=expression;saveCalc();}
+  function erase(){result.textContent='0';completed=false;repeat=null;expression=input.value.slice(0,-1);input.value=expression;preview();saveCalc();}
   function equals(){
     if(completed&&!repeat)return;
     try{
-      const original=completed?`${input.value}${repeat.op}(${repeat.rhs})`:input.value.replace(/[+\-*/×÷]$/,operator=>operator+'0');
+      const original=completed?`${result.textContent}${repeat.op}(${repeat.rhs})`:input.value.replace(/[+\-*/×÷]$/,operator=>operator+'0');
       const evaluation=evaluateCalculation(original),value=String(evaluation.value);repeat=evaluation.repeat;
       history=[...history,{expression:original,result:value}].slice(-1);renderHistory();
-      result.textContent=value;expression=value;input.value=value;completed=true;
+      result.textContent=value;expression=original;input.value=original;completed=true;
     }catch(err){result.textContent=err.message;}
     saveCalc();
   }
@@ -73,7 +87,7 @@ export function mountTools(container, state, onChange) {
     result.textContent='0';repeat=null;
     const before=input.value,caret=input.selectionStart;expression=normalizeInput(before);
     if(expression!==before){input.value=expression;if(caret!=null){const position=normalizeInput(before.slice(0,caret)).length;input.setSelectionRange(position,position);}}
-    completed=false;saveCalc();
+    completed=false;preview();saveCalc();
   };
   container.querySelector('.calculator-box').onkeydown=event=>{
     if(event.metaKey||event.ctrlKey||event.altKey)return;
@@ -82,7 +96,7 @@ export function mountTools(container, state, onChange) {
     if(event.target===input)return;
     if(/^[0-9.+\-*/()%]$/.test(event.key)||event.key==='Backspace'){
       event.preventDefault();if(event.key==='Backspace'){erase();return;}fresh(event.key);expression=normalizeInput(input.value+event.key);
-      input.value=expression.slice(0,200);saveCalc();
+      input.value=expression.slice(0,200);preview();saveCalc();
     }
   };
   container.querySelectorAll('[data-calc]').forEach(button=>button.onclick=()=>{
@@ -94,9 +108,9 @@ export function mountTools(container, state, onChange) {
     fresh(key);
     if(key==='+/-')expression=input.value.startsWith('-(')?input.value.slice(2,-1):`-(${input.value||'0'})`;
     else {const next=normalizeInput(input.value+key);expression=next.length<=200?next:input.value;}
-    input.value=expression;saveCalc();input.focus();
+    input.value=expression;preview();saveCalc();input.focus();
   });
-  renderHistory();result.hidden=Number.isFinite(Number(result.textContent));
+  renderHistory();if(!completed)preview();result.hidden=false;result.className=Number.isFinite(Number(result.textContent))?'':'calc-error';
   const canvas=container.querySelector('#drawing'), ctx=canvas.getContext('2d');
   let current=null;
   function line(stroke){ctx.strokeStyle=stroke.color;ctx.lineWidth=stroke.width;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();stroke.points.forEach((p,i)=>i?ctx.lineTo(p[0]*canvas.width,p[1]*canvas.height):ctx.moveTo(p[0]*canvas.width,p[1]*canvas.height));ctx.stroke();}
@@ -105,13 +119,13 @@ export function mountTools(container, state, onChange) {
   canvas.onpointerdown=e=>{ if(e.button!==0)return; canvas.setPointerCapture(e.pointerId);current={color:container.querySelector('#pen-color').value,width:Number(container.querySelector('#pen-width').value),points:[point(e)]};current.points.push([current.points[0][0]+0.0001,current.points[0][1]+0.0001]);repaint(); };
   canvas.onpointermove=e=>{if(!current)return; if(current.points.length<5000)current.points.push(point(e));repaint();};
   const end=()=>{if(!current)return;state.drawings.push(current);current=null;onChange();repaint();};canvas.onpointerup=end;canvas.onpointercancel=end;
-  container.querySelector('#clear-drawing').onclick=async()=>{if(!state.drawings.length)return;if(await confirmAction('그림판 내용을 모두 지울까요?','모두 지우기')){state.drawings=[];onChange();repaint();}};
+  container.querySelector('#clear-drawing').onclick=async()=>{if(!state.drawings.length)return;if(await confirmAction('그림판 내용을 모두 지울까요? 메모장은 유지됩니다.','그림 삭제')){clearToolData(state,'draw');current=null;onChange();repaint();}};
   container.querySelector('#undo-drawing').onclick=()=>{state.drawings.pop();onChange();repaint();};
   repaint();
 }
 export function toolsMarkup() {
-  return `<div class="tools-box"><div class="tool-tabs"><button class="active" data-tool="note">메모장</button><button data-tool="draw">그림판</button></div>
+  return `<div class="tools-box"><div class="tool-tabs"><button class="active" data-tool="note">메모장</button><button data-tool="draw">그림판</button><button id="clear-note" class="tool-clear" data-clear-tool="note" aria-label="메모장 내용 삭제">삭제</button><button id="clear-drawing" class="tool-clear" data-clear-tool="draw" aria-label="그림판 내용 삭제" hidden>삭제</button></div>
   <div data-tool-panel="note"><textarea id="scratch-note" maxlength="15000" placeholder="계산 과정과 생각을 자유롭게 적어 보세요." aria-label="시험 메모장"></textarea><span class="subtle">다음 문제로 넘어가면 도구가 초기화됩니다.</span></div>
-  <div data-tool-panel="draw" hidden><div class="drawing-controls"><label>색상 <input type="color" id="pen-color" value="#23463e"></label><label>굵기 <select id="pen-width"><option value="3">얇게</option><option value="6">보통</option><option value="10">굵게</option></select></label><button id="undo-drawing" class="text-button">한 획 취소</button><button id="clear-drawing" class="text-button">전체 지우기</button></div><canvas id="drawing" width="900" height="360" aria-label="풀이 그림판"></canvas></div>
+  <div data-tool-panel="draw" hidden><div class="drawing-controls"><label>색상 <input type="color" id="pen-color" value="#23463e"></label><label>굵기 <select id="pen-width"><option value="3">얇게</option><option value="6">보통</option><option value="10">굵게</option></select></label><button id="undo-drawing" class="text-button">한 획 취소</button></div><canvas id="drawing" width="900" height="360" aria-label="풀이 그림판"></canvas></div>
   </div><div class="calculator-box" tabindex="0" aria-label="계산기"><div class="calculator-heading"><strong>계산기</strong></div><div id="calc-history" aria-label="직전 계산 결과"></div><label class="sr-only" for="calc-input">계산 수식</label><input id="calc-input" maxlength="200" placeholder="숫자 · 사칙연산 · %" autocomplete="off"><output id="calc-result">0</output><div class="calc-grid">${['AC','backspace','%','÷','7','8','9','×','4','5','6','-','1','2','3','+','+/-','0','.','='].map(k=>`<button data-calc="${k}" class="${k==='='?'equals':''}" ${k==='backspace'?'aria-label="한 글자 지우기" title="한 글자 지우기"':k==='AC'?'aria-label="전체 지우기" title="전체 지우기"':''}>${k==='backspace'?'⌫':k}</button>`).join('')}</div></div>`;
 }

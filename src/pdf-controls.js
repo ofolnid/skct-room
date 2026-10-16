@@ -1,4 +1,4 @@
-import {advance} from './core.js';
+import {advance,formatTime} from './core.js';
 export function mountZoomInput(input,initialZoom,onZoom,onError){
   let current=initialZoom;
   input.value=String(current);
@@ -30,4 +30,10 @@ export function mountAutoAdvanceToggle(input,exam,onChange){
   if(!input)return;
   input.checked=exam.autoAdvancePDF===true;
   input.onchange=()=>{exam.autoAdvancePDF=input.checked;onChange();};
+}
+
+export function updateQuestionTime(element,elapsed){
+  const ms=Math.max(0,elapsed);
+  element.textContent=formatTime(ms);
+  element.classList.toggle('over-minute',ms>60000);
 }

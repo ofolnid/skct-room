@@ -124,3 +124,94 @@ body.exam-active .pdf-toolbar>strong{font-size:24px}
 .pdf-auto-advance{display:flex;flex-direction:row;align-items:flex-start;gap:10px;padding:14px 16px;border:1px solid var(--line);border-radius:10px;margin-top:16px;background:#fafafa}.pdf-auto-advance input{width:auto;margin-top:3px;accent-color:#171717}.pdf-auto-advance span{display:flex;flex-direction:column;gap:7px}.pdf-auto-advance strong{font-size:14px;color:#222}.pdf-auto-advance small{font-size:12px;color:#777;line-height:1.6}
 
 .ready-dialog .pdf-auto-advance{pointer-events:auto;text-align:left;margin:18px 0 4px}.pause-dialog .pdf-auto-advance{text-align:left;margin:16px 0}.ready-dialog .pdf-auto-advance small,.pause-dialog .pdf-auto-advance small{font-size:11px}.ready-dialog{max-height:calc(100dvh - 32px);overflow-y:auto}
+
+/* Full-width exam toolbar background; controls stay aligned with the workspace. */
+body.exam-active{overflow-x:clip}
+body.exam-active .exam-page{padding-top:0}
+body.exam-active .exam-header{isolation:isolate;background:transparent;border:0;border-radius:0;padding-top:24px;padding-bottom:34px;min-height:100px}
+body.exam-active .exam-header::before{content:"";position:absolute;z-index:-1;inset:0 auto 0 50%;width:100vw;transform:translateX(-50%);background:#292929;border-bottom:1px solid #171717;pointer-events:none}
+body.exam-active .exam-progress{bottom:13px;background:#555}
+@media(max-height:780px) and (min-width:901px){body.exam-active .exam-header{padding-top:18px;padding-bottom:30px;min-height:86px}body.exam-active .exam-progress{bottom:11px}}
+@media(max-width:600px){body.exam-active .exam-page{padding-top:0!important}body.exam-active .exam-header{padding-top:20px;padding-bottom:30px;min-height:92px}}
+
+body.exam-active .exam-header{color:#fff}
+body.exam-active .exam-heading>small,body.exam-active .exam-clock>span{color:#c9c9c9}
+body.exam-active .exam-clock>b.urgent{color:#ff9b95}
+body.exam-active .exam-header .exam-progress>i{background:#f2f2f2}
+body.exam-active .exam-clock .secondary{background:#3d3d3d;border-color:#717171;color:#fff}
+body.exam-active .exam-clock .secondary:hover{background:#505050}
+
+/* Align the subject, question number and elapsed time along their text baseline. */
+body.exam-active .pdf-toolbar{padding-top:16px;padding-bottom:16px;min-height:64px}
+body.exam-active .pdf-toolbar>strong{align-items:baseline;line-height:1.2}
+body.exam-active .pdf-toolbar .question-time{align-items:baseline;line-height:1.2}
+
+/* Inline title metadata and balanced breathing room around the progress bar. */
+body.exam-active .exam-page{gap:24px}
+body.exam-active .exam-header{display:grid;grid-template-columns:minmax(0,1fr) auto;row-gap:14px;column-gap:20px;padding:26px 18px;min-height:0}
+body.exam-active .exam-heading{flex-direction:row;align-items:baseline;gap:12px}
+body.exam-active .exam-heading>strong{min-width:0}
+body.exam-active .exam-heading>small{white-space:nowrap;flex-shrink:0}
+body.exam-active .exam-progress{position:static;grid-column:1/-1;width:100%}
+@media(max-height:780px) and (min-width:901px){body.exam-active .exam-page{gap:20px}body.exam-active .exam-header{padding:22px 14px 24px;row-gap:12px}}
+@media(max-width:600px){body.exam-active .exam-header{padding:22px 10px 24px;column-gap:10px}body.exam-active .exam-heading{gap:6px;flex-wrap:wrap}}
+
+body.exam-active .pdf-toolbar>strong{gap:10px}
+body.exam-active .pdf-toolbar .pdf-question{font-size:28px;font-weight:750;line-height:1.2}
+body.exam-active .pdf-toolbar .question-time{font-size:16px!important}
+body.exam-active .pdf-subject-dot{font-size:12px;color:#999}
+body.exam-active .pdf-subject-name{font-size:16px;font-weight:600;color:#555}
+body.exam-active .exam-heading>strong{font-size:20px}
+@media(max-height:780px) and (min-width:901px){body.exam-active .exam-heading>strong{font-size:18px}}
+@media(max-width:600px){body.exam-active .exam-heading>strong{font-size:16px}}
+
+body.exam-active .pdf-toolbar .question-time b{font-weight:600}
+body.exam-active .pdf-toolbar #question-time.over-minute{color:#c63d35}
+
+
+/* Keep progress with the questions and center the clock in the full toolbar. */
+body.exam-active .exam-header{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);column-gap:20px;row-gap:0;padding:26px 0}
+.exam-header-main{display:contents}
+body.exam-active .exam-clock{align-items:baseline;gap:10px;justify-self:center}
+body.exam-active .exam-clock>span{font-size:14px}
+body.exam-active .exam-clock>b{font-size:38px;font-weight:750;line-height:1}
+.exam-header-actions{display:flex;justify-content:flex-end;align-items:center}
+body.exam-active .exam-header-actions .secondary{padding:9px 14px;background:#3d3d3d;border-color:#717171;color:#fff;font-size:13px}
+body.exam-active .exam-header-actions .secondary:hover{background:#505050}
+.question-progress-row{padding:0 14px;flex-shrink:0}
+body.exam-active .exam-main .exam-progress{height:8px;background:#d8d8d8;border-radius:5px}
+body.exam-active .exam-main .exam-progress>i{background:#252525}
+@media(max-height:780px) and (min-width:901px){body.exam-active .exam-header{padding:24px 0}body.exam-active .exam-clock>b{font-size:34px}}
+@media(max-width:1100px){body.exam-active .exam-header{column-gap:12px}body.exam-active .exam-heading{flex-wrap:wrap;gap:6px 10px}}
+@media(max-width:900px){body.exam-active .exam-clock>b{font-size:32px}}
+@media(max-width:600px){body.exam-active .exam-header-actions .secondary{font-size:0;padding:8px}body.exam-active .exam-header-actions .secondary::after{content:'Ⅱ';font-size:16px}body.exam-active .exam-heading>small{white-space:normal}}
+
+body.exam-active .pdf-toolbar .pdf-question{margin-right:10px}
+body.exam-active .tool-tabs .tool-clear{margin-left:auto;border:1px solid #ddd;background:#f4f4f4;color:#555;padding:5px 10px}
+body.exam-active .tool-tabs .tool-clear:hover{background:#e8e8e8}
+
+.question-progress-row{display:flex;align-items:center;gap:12px;padding:0}
+body.exam-active .exam-main .exam-progress{flex:1;min-width:0;width:auto}
+.question-progress-count{flex:none;font-size:13px;font-weight:600;line-height:1.2;color:#555;font-variant-numeric:tabular-nums;white-space:nowrap}
+body.exam-active .exam-clock{align-items:center}
+body.exam-active .exam-clock>span{font-size:18px;font-weight:600;line-height:1.2}
+
+body.exam-active #calc-input{height:32px;font-size:16px;margin-bottom:2px}
+body.exam-active #calc-result{height:44px;min-height:44px;font-size:30px;line-height:40px;color:#222;font-weight:650;padding:0 2px;white-space:nowrap}
+body.exam-active #calc-result.calc-error{font-size:12px;line-height:1.5;white-space:normal;color:#c63d35}
+
+/* Give the scratch tools back the space used by calculator chrome. */
+body.exam-active .exam-header{padding-top:20px;padding-bottom:20px}
+body.exam-active #calc-history{height:20px;min-height:20px;font-size:14px;line-height:20px;color:#888;margin-bottom:0}
+body.exam-active #calc-input{height:24px;min-height:24px;margin:0;padding:0 2px;border:0;border-radius:0;background:transparent;box-shadow:none;font-size:14px;line-height:24px;color:#888}
+body.exam-active #calc-input:focus{border:0;background:transparent;box-shadow:none}
+body.exam-active #calc-input::placeholder{color:#999}
+body.exam-active #calc-result{height:32px;min-height:32px;font-size:25px;line-height:30px;font-weight:400}
+
+body.exam-active .pdf-toolbar{align-items:baseline}
+body.exam-active .pdf-toolbar .actions,body.exam-active .pdf-toolbar .zoom-label{align-items:baseline}
+
+/* Use the available screen height for the PDF and its answer bar. */
+body.exam-active .exam-page{height:100dvh;padding-bottom:0}
+body.exam-active .pdf-toolbar{padding-top:10px;padding-bottom:10px;min-height:52px}
+body.exam-active .pdf-toolbar .pdf-question{font-size:24px}

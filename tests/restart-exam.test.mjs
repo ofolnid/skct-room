@@ -20,7 +20,7 @@ test('무제한 연습 재시작도 제한 시간을 만들지 않으며 완료 
  const s=createExam({...config,timeMode:'practice'},'pdf',0);s.phase='finished';s.sections[0].items[0]={answer:2,status:'answered',ms:45000};const before=structuredClone(s);const r=restartExam(s,'all',100);startSection(r,200);assert.equal(r.deadline,null);assert.equal(expire(r,99999999),false);assert.deepEqual(s,before);
 });
 test('가로 답안·분리된 도구·확정답 OMR과 문항 진행률을 렌더한다',()=>{
- const s=createExam(config,'pdf',0);startSection(s,100);chooseAnswer(s,2,200);advance(s,false,300);advance(s,true,400);const html=examMarkup(s);assert.match(html,/aria-valuenow="2"/);assert.match(html,/class="exam-main"/);assert.match(html,/class="answer-panel answer-bar"/);assert.match(html,/class="omr-panel"/);assert.match(html,/<small>1<\/small><b>2<\/b>/);assert.match(html,/다음 →/);assert.doesNotMatch(html,/data-answer="2"[^>]*selected/);
+ const s=createExam(config,'pdf',0);startSection(s,100);chooseAnswer(s,2,200);advance(s,false,300);advance(s,true,400);const html=examMarkup(s);assert.match(html,/aria-valuenow="2"/);assert.match(html,/question-progress-count[^>]*>3\/20/);assert.match(html,/class="exam-main"/);assert.match(html,/class="answer-panel answer-bar"/);assert.match(html,/class="omr-panel"/);assert.doesNotMatch(html,/id="submit-section"|확정한 답은 변경/);assert.match(html,/<small>1<\/small><b>2<\/b>/);assert.match(html,/다음 →/);assert.doesNotMatch(html,/data-answer="2"[^>]*selected/);
 });
 
 test('문제 풀이시간은 PDF 제목 옆에 한 번만 표시하고 가로 답안에서 제외한다',()=>{

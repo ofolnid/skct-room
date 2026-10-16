@@ -7,18 +7,18 @@ after(()=>{if(originalDocument===undefined)delete globalThis.document;else globa
 
 function calculator(){
   const nodes=new Map();
-  const node=()=>({value:'',textContent:'',focus(){},setSelectionRange(start,end){this.selectionStart=start;this.selectionEnd=end;},replaceChildren(){},append(){}});
+  const node=()=>({value:'',textContent:'',focus(){},setSelectionRange(start,end){this.selectionStart=start;this.selectionEnd=end;},replaceChildren(){this.children=[];},append(child){(this.children??=[]).push(child);}});
   for(const id of ['#scratch-note','#calc-input','#calc-result','#calc-history','.calculator-box','#drawing','#clear-drawing','#undo-drawing'])nodes.set(id,node());
   nodes.get('#drawing').getContext=()=>({clearRect(){}});
   const buttons=['0','1','2','3','4','5','6','7','8','9','.', '(',')','+','-','×','÷','=','AC','backspace','%','+/-'].map(key=>({...node(),dataset:{calc:key}}));
   const container={querySelector:s=>nodes.get(s),querySelectorAll:s=>s==='[data-calc]'?buttons:[]};
   const state={drawings:[],calculator:{expression:'70',result:'70',completed:true,history:[{expression:'7*10',result:'70'}]}};
   mountTools(container,state,()=>{});
-  return {state,input:nodes.get('#calc-input'),box:nodes.get('.calculator-box'),click:key=>buttons.find(b=>b.dataset.calc===key).onclick()};
+  return {state,result:nodes.get('#calc-result'),history:nodes.get('#calc-history'),input:nodes.get('#calc-input'),box:nodes.get('.calculator-box'),click:key=>buttons.find(b=>b.dataset.calc===key).onclick()};
 }
 
 test('결과 뒤 버튼 숫자는 새 계산, 연산 기호는 결과에 이어서 계산한다',()=>{
-  const fresh=calculator();fresh.click('1');assert.equal(fresh.state.calculator.expression,'1');assert.equal(fresh.state.calculator.result,'0');
+  const fresh=calculator();fresh.click('1');assert.equal(fresh.state.calculator.expression,'1');assert.equal(fresh.state.calculator.result,'1');
   for(const [op,result] of [['+','72'],['-','68'],['×','140'],['÷','35']]){
     const c=calculator();c.click(op);assert.equal(c.input.value,'70'+op);c.click('2');c.click('=');assert.equal(c.state.calculator.result,result);
     assert.equal(c.state.calculator.history.length,1);
@@ -70,8 +70,8 @@ test('각 숫자 소수점 중복은 차단하고 별도 숫자의 소수점은 
  c.click('AC');c.input.value='1..2+3..4';c.input.selectionStart=10;c.input.oninput();assert.equal(c.input.value,'1.2+3.4');
 });
 test('오류 후 버튼·직접 수정은 안내를 지우고 정상 재계산한다',()=>{
- const c=calculator();c.click('AC');for(const k of ['1','÷','0','='])c.click(k);assert.match(c.state.calculator.result,/0으로/);c.click('backspace');assert.equal(c.state.calculator.result,'0');c.click('2');c.click('=');assert.equal(c.state.calculator.result,'0.5');
- c.click('AC');c.click('(');c.click('=');c.input.value='2+3';c.input.oninput();assert.equal(c.state.calculator.result,'0');c.click('=');assert.equal(c.state.calculator.result,'5');
+ const c=calculator();c.click('AC');for(const k of ['1','÷','0','='])c.click(k);assert.match(c.state.calculator.result,/0으로/);c.click('backspace');assert.equal(c.state.calculator.result,'1');c.click('2');c.click('=');assert.equal(c.state.calculator.result,'0.5');
+ c.click('AC');c.click('(');c.click('=');c.input.value='2+3';c.input.oninput();assert.equal(c.state.calculator.result,'5');c.click('=');assert.equal(c.state.calculator.result,'5');
 });
 test('퍼센트는 더하기·빼기에서 왼쪽 값의 비율, 곱하기·나누기에서 소수다',()=>{
  for(const [expression,value] of [['200+10%',220],['200-10%',180],['200×10%',20],['200÷10%',2000],['200+10%+10%',242],['10%',0.1],['(200+100)+10%',330]])assert.equal(calculate(expression),value);
@@ -82,7 +82,7 @@ test('등호 반복은 마지막 연산을 반복하고 새 입력·AC는 반복
 });
 test('작거나 큰 지수 표기 결과도 이어 계산 가능하며 비유한 값은 거절한다',()=>{
  assert.equal(calculate('1e-7×2'),2e-7);assert.equal(calculate('1e+21+1e+21'),2e21);assert.throws(()=>calculate('1e309'));
- const c=calculator();c.click('AC');c.input.value='1/10000000';c.input.oninput();c.click('=');assert.equal(c.input.value,'1e-7');c.click('×');c.click('2');c.click('=');assert.equal(c.state.calculator.result,'2e-7');
+ const c=calculator();c.click('AC');c.input.value='1/10000000';c.input.oninput();c.click('=');assert.equal(c.state.calculator.result,'1e-7');assert.equal(c.input.value,'1/10000000');c.click('×');c.click('2');c.click('=');assert.equal(c.state.calculator.result,'2e-7');
 });
 
 test('간단 계산기는 괄호·제곱 UI와 입력을 막고 직전 결과 하나만 보존한다',()=>{
@@ -91,7 +91,7 @@ test('간단 계산기는 괄호·제곱 UI와 입력을 막고 직전 결과 �
   let blocked=false;c.input.onbeforeinput({inputType:'insertText',data,preventDefault(){blocked=true;}});assert.equal(blocked,true);
  }
  let pasteBlocked=false;c.input.onpaste({clipboardData:{getData:()=>'(2+3)^2'},preventDefault(){pasteBlocked=true;}});assert.equal(pasteBlocked,true);
- c.click('+');c.click('2');c.click('=');c.click('+');c.click('3');c.click('=');assert.equal(c.input.value,'75');assert.equal(c.state.calculator.history.length,1);assert.equal(c.state.calculator.history[0].result,'75');
+ c.click('+');c.click('2');c.click('=');c.click('+');c.click('3');c.click('=');assert.equal(c.input.value,'72+3');assert.equal(c.state.calculator.result,'75');assert.equal(c.state.calculator.history.length,1);assert.equal(c.state.calculator.history[0].result,'75');
  c.click('AC');assert.deepEqual(c.state.calculator.history,[]);
 });
 
@@ -103,4 +103,16 @@ test('Esc·Delete는 계산기 전체 초기화를 실행하지 않고 AC만 초
  }
  c.click('AC');assert.equal(c.input.value,'');assert.deepEqual(c.state.calculator.history,[]);
  assert.doesNotMatch(toolsMarkup(),/Esc 초기화/);
+});
+
+test('현재 식 아래 실시간 미리보기는 Ans를 바꾸지 않고 Enter에서만 확정한다',()=>{
+ const c=calculator();c.click('2');c.click('+');c.click('3');
+ assert.equal(c.input.value,'2+3');assert.equal(c.result.textContent,'5');assert.equal(c.result.hidden,false);assert.equal(c.history.children[0].textContent,'Ans: 70');
+ c.click('=');assert.equal(c.input.value,'2+3');assert.equal(c.result.textContent,'5');assert.equal(c.history.children[0].textContent,'Ans: 5');
+ c.click('+');c.click('4');assert.equal(c.input.value,'5+4');assert.equal(c.result.textContent,'9');assert.equal(c.history.children[0].textContent,'Ans: 5');
+ c.click('=');c.click('1');assert.equal(c.input.value,'1');assert.equal(c.result.textContent,'1');assert.equal(c.history.children[0].textContent,'Ans: 9');
+});
+test('미완성 식은 마지막 유효 계산값을 보여주고 오류 수정 뒤 미리보기를 복구한다',()=>{
+ const c=calculator();c.click('AC');for(const k of ['2','+','3','×'])c.click(k);assert.equal(c.input.value,'2+3×');assert.equal(c.result.textContent,'5');
+ c.click('2');assert.equal(c.result.textContent,'8');c.click('AC');for(const k of ['1','÷','0'])c.click(k);assert.match(c.result.textContent,/0으로/);c.click('backspace');c.click('2');assert.equal(c.result.textContent,'0.5');assert.equal(c.history.children[0].textContent,'Ans: 0');
 });
