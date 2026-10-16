@@ -1,3 +1,4 @@
+import {advance} from './core.js';
 export function mountZoomInput(input,initialZoom,onZoom,onError){
   let current=initialZoom;
   input.value=String(current);
@@ -12,4 +13,21 @@ export function mountZoomInput(input,initialZoom,onZoom,onError){
   input.onchange=apply;
   input.onblur=apply;
   input.onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();apply();}};
+}
+
+export function submitAnswerAndTurnPage(exam,viewer,skip=false,now=Date.now(),expectedIndex=exam.questionIndex){
+  const sectionIndex=exam.sectionIndex;
+  const position=exam.autoAdvancePDF&&viewer?viewer.position():null;
+  const submitted=advance(exam,skip,now,expectedIndex);
+  const end=exam.pdfRange?.end??exam.sections[sectionIndex].end;
+  if(submitted&&position&&exam.phase==='running'&&exam.sectionIndex===sectionIndex&&position.page<end){
+    viewer.go(position.page+1);
+  }
+  return submitted;
+}
+
+export function mountAutoAdvanceToggle(input,exam,onChange){
+  if(!input)return;
+  input.checked=exam.autoAdvancePDF===true;
+  input.onchange=()=>{exam.autoAdvancePDF=input.checked;onChange();};
 }

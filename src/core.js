@@ -5,6 +5,7 @@ export function validateConfig(input) {
   const range=input.pdfRange || {start:Math.min(...input.sections.map(s=>Number(s.start))),end:Math.max(...input.sections.map(s=>Number(s.end)))};
   const start=Number(range.start), end=Number(range.end);
   if(!Number.isInteger(start)||!Number.isInteger(end)||start<1||end<start||end>10000)throw new Error('PDF 시작·끝 페이지를 확인해 주세요.');
+  if(input.autoAdvancePDF!=null&&typeof input.autoAdvancePDF!=='boolean')throw new Error('PDF 자동 넘김 설정을 확인해 주세요.');
   const sections = input.sections.map((s, i) => {
     const count = Number(s.count), minutes = Number(s.minutes);
     if (!s.name || typeof s.name !== 'string' || s.name.length > 40) throw new Error(`${i + 1}번째 과목 이름을 입력해 주세요.`);
@@ -25,7 +26,7 @@ export function validateConfig(input) {
   if(!['timed','practice'].includes(timeMode))throw new Error('시간 제한 모드를 확인해 주세요.');
   const breakMode=input.breakMode??'free';
   if(!['free','timed'].includes(breakMode))throw new Error('영역 사이 휴식 모드를 확인해 주세요.');
-  return { title: input.title.trim(), mode, timeMode, breakMode:mode==='full'&&timeMode!=='practice'?breakMode:'free', pdfRange:{start,end}, sections };
+  return { title: input.title.trim(), mode, timeMode, breakMode:mode==='full'&&timeMode!=='practice'?breakMode:'free', pdfRange:{start,end}, autoAdvancePDF:input.autoAdvancePDF===true, sections };
 }
 export function validateMetadata(values,count,type) {
   if(!Array.isArray(values) || values.length!==count)throw new Error('문항별 참고 정보 개수가 문항 수와 다릅니다.');
@@ -50,7 +51,7 @@ export function parseKey(input, count) {
 }
 export function createExam(config, pdfHash, now = Date.now()) {
   config = validateConfig(config);
-  return { version: VERSION, id: crypto.randomUUID(), title: config.title, mode:config.mode, timeMode:config.timeMode, breakMode:config.breakMode, preparationDeadline:null, pdfRange:config.pdfRange, createdAt: now, pdfHash,
+  return { version: VERSION, id: crypto.randomUUID(), title: config.title, mode:config.mode, timeMode:config.timeMode, breakMode:config.breakMode, preparationDeadline:null, pdfOptionsConfirmed:false, autoAdvancePDF:config.autoAdvancePDF, pdfRange:config.pdfRange, createdAt: now, pdfHash,
     sections: config.sections.map(s => ({ ...s, items: Array.from({length:s.count}, () => ({answer:null, status:'unreached', ms:0})), startedAt:null, endedAt:null, elapsed:0 })),
     phase:'ready', pausedAt:null, sectionIndex:0, questionIndex:0, questionStartedAt:null, deadline:null, selection:null, selectionFlags:{uncertain:false,guessed:false}, memo:'', reflection:'', drawings:[], calculator:{expression:'',result:'0',completed:false,history:[]} };
 }
@@ -173,6 +174,7 @@ export function restartExam(state,scope='all',now=Date.now(),sectionIndex=state.
   if(!['all','section'].includes(scope))throw new Error('다시 시작할 범위를 확인해 주세요.');
   if(scope==='section'&&(!Number.isInteger(sectionIndex)||sectionIndex<0||sectionIndex>state.sectionIndex||sectionIndex>=state.sections.length))throw new Error('다시 시작할 과목을 확인해 주세요.');
   const fresh=createExam(state,state.pdfHash,now);
+  fresh.pdfOptionsConfirmed=!!state.pdfOptionsConfirmed;
   fresh.pdfPosition=structuredClone(state.pdfPosition||{page:state.pdfRange?.start||1,fraction:0,left:0});
   if(scope==='section'){
     fresh.id=state.id;fresh.createdAt=state.createdAt;fresh.reflection=state.reflection||'';

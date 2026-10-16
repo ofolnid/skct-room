@@ -1,10 +1,10 @@
-import { validateConfig, createExam, restartExam, beginPreparation, synchronizeExam, pauseForNavigation, pauseExam, resumePausedExam, chooseAnswer, advance, submitSection, toggleFlag, parseKey, formatTime, escapeHTML as e } from './core.js';
+import { validateConfig, createExam, restartExam, beginPreparation, synchronizeExam, pauseForNavigation, pauseExam, resumePausedExam, chooseAnswer, submitSection, toggleFlag, parseKey, formatTime, escapeHTML as e } from './core.js';
 import { confirmAction,dismissActionDialogs } from './dialog.js';
 import { loadAnswerSets,applyAnswerSet,clearAnswerMetadata,regradeAnswerSet } from './answer-sets.js';
 import { load, save, storageAvailable, rememberResult, savedResults } from './storage.js';
 import { openPDF, preparePDF, hasPage, mountPDFViewer, clearPages } from './pdf.js';
-import { examMarkup } from './exam-layout.js';
-import { mountZoomInput } from './pdf-controls.js';
+import { examMarkup,pdfAutoAdvanceMarkup,initialPDFOptionsMarkup } from './exam-layout.js';
+import { mountZoomInput,submitAnswerAndTurnPage,mountAutoAdvanceToggle } from './pdf-controls.js';
 import { mountTools } from './tools.js';
 import { reportMarkup, totals, copyContent, csvContent } from './report.js';
 const app=document.querySelector('#app');
@@ -22,7 +22,7 @@ async function enterExamFullscreen(){
   if(!document.documentElement.requestFullscreen){notify('이 브라우저는 자동 전체화면을 지원하지 않습니다. 전체화면을 지원하는 브라우저에서 열어 주세요.');return false;}
   try{await document.documentElement.requestFullscreen();return true;}catch{notify('전체화면 진입이 차단됐습니다. 브라우저 권한이나 전체화면 설정을 확인한 뒤 다시 시작해 주세요.');return false;}
 }
-async function startPreparedExam(){if(!await enterExamFullscreen())return;if(beginPreparation(exam)){persist();renderExam();}}
+async function startPreparedExam(){if(!await enterExamFullscreen())return;if(beginPreparation(exam)){exam.pdfOptionsConfirmed=true;persist();renderExam();}}
 
 async function acquireLock(){
   if(!navigator.locks) { locked=true; return; }
@@ -37,7 +37,7 @@ else { if(exam && synchronizeExam(exam))persist(); if(exam?.phase==='finished'){
 function notify(text){const t=document.querySelector('#toast');t.textContent=text;t.hidden=false;clearTimeout(t._timeout);t._timeout=setTimeout(()=>t.hidden=true,4200);}
 function persist(){if(!locked)return;if(exam&&pdfViewer)exam.pdfPosition=pdfViewer.position();const current=load('current');if(exam && !(current && current.id!==exam.id && ['ready','running','paused','between','preparing'].includes(current.phase)))save('current',exam); document.querySelector('#storage-warning').hidden=storageAvailable();}
 function nav(){if(view!=='exam'&&document.fullscreenElement)document.exitFullscreen().catch(()=>{});document.querySelectorAll('nav button').forEach(b=>b.disabled=b.id!=='nav-help'&&view==='exam'&&exam?.phase==='preparing');document.body.classList.toggle('exam-active',view==='exam');document.querySelector('#nav-setup').classList.toggle('active',['setup','exam'].includes(view));document.querySelector('#nav-history').classList.toggle('active',['history','result'].includes(view));}
-function currentConfig(){return {title:library.find(k=>k.id===(app.querySelector('#key-select')?.value??selectedKey))?.title??app.querySelector('#exam-title')?.value??config.title,mode:examMode,timeMode,breakMode,pdfRange:{start:Number(app.querySelector('#range-start').value),end:Number(app.querySelector('#range-end').value)},sections:config.sections.map(clearAnswerMetadata)};}
+function currentConfig(){return {title:library.find(k=>k.id===(app.querySelector('#key-select')?.value??selectedKey))?.title??app.querySelector('#exam-title')?.value??config.title,mode:examMode,timeMode,breakMode,autoAdvancePDF:config.autoAdvancePDF??false,pdfRange:{start:Number(app.querySelector('#range-start').value),end:Number(app.querySelector('#range-end').value)},sections:config.sections.map(clearAnswerMetadata)};}
 function applyLibrary(c){if(!selectedKey)return c;const key=library.find(k=>k.id===selectedKey);if(!key)throw new Error('선택한 정답 세트를 찾을 수 없습니다.');return applyAnswerSet(c,key);}
 function subjectRow(s,i){return `<div class="subject-overview"><span>${String(i+1).padStart(2,'0')}</span><strong>${e(s.name)}</strong><small>20문제 · ${timeMode==='practice'?'시간 제한 없음':'15분'}</small></div>`;}
 function examRange(){return exam.pdfRange || {start:Math.min(...exam.sections.map(s=>s.start)),end:Math.max(...exam.sections.map(s=>s.end))};}
@@ -61,8 +61,8 @@ function renderSetup(){
     catch(err){pdfInfo=null;prepared=false;fileName='';showSetupError(err.message);}
     finally{busy=false;disableSetup(false);}
   };
-  app.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{config=currentConfig();selectedKey=app.querySelector('#key-select').value;if(examMode==='full')fullSections=config.sections;else fullSections=fullSections.map(s=>s.name===singleSubject?config.sections[0]:s);examMode=b.dataset.mode;config={title:config.title,pdfRange:config.pdfRange,mode:examMode,sections:examMode==='full'?fullSections:[fullSections.find(s=>s.name===singleSubject)]};renderSetup();});
-  app.querySelector('#single-subject')?.addEventListener('change',event=>{const current=currentConfig();fullSections=fullSections.map(s=>s.name===singleSubject?current.sections[0]:s);singleSubject=event.target.value;config={title:current.title,pdfRange:current.pdfRange,mode:'single',sections:[fullSections.find(s=>s.name===singleSubject)]};renderSetup();});
+  app.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{config=currentConfig();selectedKey=app.querySelector('#key-select').value;if(examMode==='full')fullSections=config.sections;else fullSections=fullSections.map(s=>s.name===singleSubject?config.sections[0]:s);examMode=b.dataset.mode;config={...config,title:config.title,pdfRange:config.pdfRange,mode:examMode,sections:examMode==='full'?fullSections:[fullSections.find(s=>s.name===singleSubject)]};renderSetup();});
+  app.querySelector('#single-subject')?.addEventListener('change',event=>{const current=currentConfig();fullSections=fullSections.map(s=>s.name===singleSubject?current.sections[0]:s);singleSubject=event.target.value;config={...current,title:current.title,pdfRange:current.pdfRange,mode:'single',sections:[fullSections.find(s=>s.name===singleSubject)]};renderSetup();});
   app.querySelectorAll('[name="time-mode"]').forEach(input=>input.onchange=()=>{config=currentConfig();timeMode=input.value;renderSetup();});
   app.querySelectorAll('[name="break-mode"]').forEach(input=>input.onchange=()=>breakMode=input.value);
   app.querySelector('#exam-title').oninput=event=>manualTitle=event.target.value;
@@ -115,7 +115,7 @@ function renderExam(){
   app.querySelectorAll('[data-answer]').forEach(b=>b.onclick=()=>{const changed=chooseAnswer(exam,Number(b.dataset.answer));persist();if(!changed){afterChange();return;}app.querySelectorAll('[data-answer]').forEach(x=>{x.classList.toggle('selected',x===b);x.setAttribute('aria-pressed',String(x===b));});app.querySelector('#confirm-answer').disabled=false;});
   app.querySelectorAll('[data-flag]').forEach(b=>b.onclick=()=>{if(!toggleFlag(exam,b.dataset.flag)){persist();afterChange();return;}persist();const active=exam.selectionFlags[b.dataset.flag];b.classList.toggle('selected',active);b.setAttribute('aria-pressed',String(active));});
   const expected=exam.questionIndex;
-  function proceed(skip){if(Date.now()-lastAction<300)return;lastAction=Date.now();advance(exam,skip,Date.now(),expected);persist();afterChange();}
+  function proceed(skip){if(Date.now()-lastAction<300)return;lastAction=Date.now();submitAnswerAndTurnPage(exam,pdfViewer,skip,Date.now(),expected);persist();afterChange();}
   app.querySelector('#confirm-answer')?.addEventListener('click',()=>proceed(false));app.querySelector('#skip-answer')?.addEventListener('click',()=>proceed(true));
   app.querySelector('#submit-section')?.addEventListener('click',async()=>{if(await confirmAction('현재 과목을 제출할까요? 선택 중인 답은 제출하고, 남은 문제는 미도달로 기록합니다.','과목 제출')){submitSection(exam);persist();afterChange();}});
   mountTools(app.querySelector('.tool-panel'),exam,persist);if(exam.phase==='preparing')showPreparation();if(exam.phase==='ready')showReady();tick();clearInterval(timer);timer=setInterval(tick,200);
@@ -126,7 +126,8 @@ function showReady(){
   app.classList.add('exam-preparing');
   app.querySelector('.answer-panel').inert=true;app.querySelector('.tool-panel').inert=true;
   const box=document.createElement('section');box.className='preparation-dialog ready-dialog';box.setAttribute('role','dialog');box.setAttribute('aria-labelledby','ready-title');
-  box.innerHTML=`<span class="eyebrow">READY WHEN YOU ARE</span><h2 id="ready-title">${e(exam.sections[exam.sectionIndex].name)} 시작 대기</h2><p>PDF를 이동해 시작 위치를 맞춰 주세요.<br>아직 풀이 시간은 흐르지 않습니다.</p><button class="primary wide" id="ready-start">준비 완료 · 시험 시작</button>`;
+  box.innerHTML=`<span class="eyebrow">READY WHEN YOU ARE</span><h2 id="ready-title">${e(exam.sections[exam.sectionIndex].name)} 시작 대기</h2><p>PDF를 이동해 시작 위치를 맞춰 주세요.<br>아직 풀이 시간은 흐르지 않습니다.</p>${initialPDFOptionsMarkup(exam)}<button class="primary wide" id="ready-start">준비 완료 · 시험 시작</button>`;
+  mountAutoAdvanceToggle(box.querySelector('#ready-auto-advance-pdf'),exam,persist);
   box.querySelector('button').onclick=startPreparedExam;app.append(box);
 }
 function showPreparation(){
@@ -135,15 +136,16 @@ function showPreparation(){
   app.querySelector('.answer-panel').inert=true;app.querySelector('.tool-panel').inert=true;
   const box=document.createElement('section');box.className='preparation-dialog';box.setAttribute('role','dialog');box.setAttribute('aria-labelledby','preparation-title');
   box.innerHTML=`<span class="eyebrow">GET READY</span><h2 id="preparation-title">${e(exam.sections[exam.sectionIndex].name)} 시작 준비</h2><div class="preparation-time"><b id="preparation-count">${Math.max(0,Math.ceil((exam.preparationDeadline-Date.now())/1000))}</b><span>초 후 자동 시작</span></div><p>다음 영역의 시작 페이지로<br>PDF 위치를 맞춰 주세요.</p><p class="subtle">지금은 PDF만 이동할 수 있습니다.<br>${exam.timeMode==='practice'?'준비 시간이 끝나면 풀이시간 기록이 시작됩니다.':'준비 시간이 끝나면 15분 타이머가 시작됩니다.'}</p>`;
-  if(exam.sectionIndex>0){const retry=document.createElement('button');retry.className='secondary';retry.textContent='직전 과목 다시 시작';retry.style.pointerEvents='auto';retry.onclick=()=>requestRestart('section',exam.sectionIndex-1);box.append(retry);}
+  if(exam.sectionIndex>0){const retry=document.createElement('button');retry.className='secondary';retry.textContent='직전 과목 리셋';retry.style.pointerEvents='auto';retry.onclick=()=>requestRestart('section',exam.sectionIndex-1);box.append(retry);}
   app.append(box);
 }
 function showPause(){
   clearInterval(timer);app.classList.add('exam-paused');
   const preparing=exam.pausedPhase==='preparing',remaining=Math.max(0,(preparing?exam.preparationDeadline:exam.deadline)-exam.pausedAt),s=exam.sections[exam.sectionIndex];
   const dialog=document.createElement('dialog');dialog.id='pause-dialog';dialog.className='pause-dialog';dialog.setAttribute('aria-labelledby','pause-title');
-  dialog.innerHTML=`<span class="eyebrow">TAKE A PAUSE</span><span class="pause-icon" aria-hidden="true">Ⅱ</span><h2 id="pause-title">일시정지 중</h2><p class="subtle">${preparing?'준비 카운트다운이 멈춰 있습니다.':'과목과 문제 풀이 시간이 멈춰 있습니다.'}</p><div class="pause-info"><strong>${e(s.name)}</strong><span>${preparing?'남은 준비 시간':exam.timeMode==='practice'?'풀이 시간':'남은 시간'}</span><b>${formatTime(!preparing&&exam.timeMode==='practice'?Math.max(0,exam.pausedAt-s.startedAt-(s.pausedMs||0)):Math.ceil(remaining/1000)*1000)}</b></div><button id="resume-paused" class="primary wide"><span aria-hidden="true">▶</span> ${preparing?'준비 재개':'시험 재개'}</button>`;
-  dialog.insertAdjacentHTML('beforeend','<button id="exit-fullscreen" class="secondary wide">전체화면 취소</button><div class="restart-actions"><button id="restart-section" class="secondary wide">현재 과목 다시 시작</button><button id="restart-all" class="text-button wide">전체 시험 다시 시작</button></div>');
+  dialog.innerHTML=`<span class="eyebrow">TAKE A PAUSE</span><span class="pause-icon" aria-hidden="true">Ⅱ</span><h2 id="pause-title">일시정지 중</h2><p class="subtle">${preparing?'준비 카운트다운이 멈춰 있습니다.':'과목과 문제 풀이 시간이 멈춰 있습니다.'}</p><div class="pause-info"><strong>${e(s.name)}</strong><span>${preparing?'남은 준비 시간':exam.timeMode==='practice'?'풀이 시간':'남은 시간'}</span><b>${formatTime(!preparing&&exam.timeMode==='practice'?Math.max(0,exam.pausedAt-s.startedAt-(s.pausedMs||0)):Math.ceil(remaining/1000)*1000)}</b></div>${pdfAutoAdvanceMarkup('pause-auto-advance-pdf',exam.autoAdvancePDF)}<button id="resume-paused" class="primary wide"><span aria-hidden="true">▶</span> ${preparing?'준비 재개':'시험 재개'}</button>`;
+  dialog.insertAdjacentHTML('beforeend','<button id="exit-fullscreen" class="secondary wide">전체화면 취소</button><div class="restart-actions"><button id="restart-section" class="secondary wide">현재 과목 리셋</button><button id="restart-all" class="text-button wide">전체 시험 리셋</button></div>');
+  mountAutoAdvanceToggle(dialog.querySelector('#pause-auto-advance-pdf'),exam,persist);
   dialog.querySelector('#exit-fullscreen').onclick=async()=>{if(document.fullscreenElement)await document.exitFullscreen();};
   dialog.querySelector('#restart-section').onclick=()=>requestRestart('section');
   dialog.querySelector('#restart-all').onclick=()=>requestRestart('all');
@@ -158,7 +160,7 @@ async function requestRestart(scope,index=exam.sectionIndex){
   clearInterval(timer);persist();
   const name=exam.sections[index].name;
   const message=scope==='all'?'모든 과목의 답안·풀이시간·표시·도구를 초기화하고 첫 과목 시작 대기로 돌아갑니다. 완료한 기존 결과는 응시 기록에 남습니다.':`${name}의 답안·풀이시간·표시·도구를 초기화합니다. 이전 과목 기록은 유지하고 시작 대기로 돌아갑니다.`;
-  if(!await confirmAction(message,scope==='all'?'전체 시험 다시 시작':'과목 다시 시작')){
+  if(!await confirmAction(message,scope==='all'?'전체 시험 리셋':'과목 리셋')){
     if(exam!==target)return;
     if(autoPaused)resumePausedExam(exam);
     persist();if(view==='exam')renderExam();return;
@@ -170,13 +172,13 @@ async function requestRestart(scope,index=exam.sectionIndex){
   save('current',exam);
   const range=examRange();
   if(prepared&&pdfInfo?.hash===exam.pdfHash&&Array.from({length:range.end-range.start+1},(_,i)=>range.start+i).every(hasPage))renderExam();
-  else{renderSetup();notify('다시 시작할 준비가 됐습니다. 같은 PDF를 선택하고 이어보기를 눌러 주세요.');}
+  else{renderSetup();notify('리셋했습니다. 같은 PDF를 선택하고 이어보기를 눌러 주세요.');}
 }
 function tick(){if(!exam||view!=='exam')return;if(exam.phase==='preparing'){const counter=app.querySelector('#preparation-count');if(counter)counter.textContent=String(Math.max(0,Math.ceil((exam.preparationDeadline-Date.now())/1000))).padStart(2,'0');}if(synchronizeExam(exam)){persist();afterChange();return;}if(exam.phase!=='running')return;const now=Date.now(),left=Math.max(0,exam.deadline-now),s=exam.sections[exam.sectionIndex];app.querySelector('#remaining-time').textContent=formatTime(exam.timeMode==='practice'?Math.max(0,now-s.startedAt-(s.pausedMs||0)):Math.ceil(left/1000)*1000);app.querySelector('#remaining-time').classList.toggle('urgent',exam.timeMode!=='practice'&&left<60000);app.querySelector('#question-time').textContent=formatTime(now-exam.questionStartedAt);}
 function afterChange(){dismissActionDialogs();document.querySelector('#help-dialog').close();if(exam.phase==='finished'){rememberResult(exam);renderResult();}else renderExam();}
 function renderBreak(){
   if(!locked)return;if(pdfViewer){pdfPosition=pdfViewer.position();pdfViewer.destroy();pdfViewer=null;}clearInterval(timer);view='exam';nav();window.scrollTo(0,0);const next=exam.sections[exam.sectionIndex],previous=exam.sections[exam.sectionIndex-1];
-  app.className='break-page';app.innerHTML=`<div class="break-background" aria-hidden="true"><div class="placeholder-page"></div><div class="placeholder-page"></div></div><dialog id="break-dialog" class="break-dialog" aria-labelledby="break-title"><span class="eyebrow">TAKE A BREATH</span><span class="break-icon">☕</span><h2 id="break-title">${e(previous.name)} 제출 완료</h2><p class="subtle">이전 영역 풀이 ${formatTime(previous.elapsed)}<br>전체 누적 응시 ${formatTime(exam.sections.reduce((sum,s)=>sum+s.elapsed,0))} ${exam.timeMode==='practice'?' · 시간 제한 없음':' / 최대 '+formatTime(exam.sections.reduce((sum,s)=>sum+s.minutes*60000,0))}</p><div class="next-subject"><span>다음 영역</span><strong>${e(next.name)}</strong><small>${next.count}문제 · ${exam.timeMode==='practice'?'시간 제한 없음':next.minutes+'분'}</small></div><p class="subtle">지금은 문제와 시간이 멈춰 있습니다.<br>충분히 쉬고 시작하세요. 휴식은 응시시간에 포함되지 않습니다.</p><button id="begin-next" class="primary wide">다음 영역 시작 →</button><button id="restart-previous" class="secondary wide">직전 과목 다시 시작</button></dialog>`;
+  app.className='break-page';app.innerHTML=`<div class="break-background" aria-hidden="true"><div class="placeholder-page"></div><div class="placeholder-page"></div></div><dialog id="break-dialog" class="break-dialog" aria-labelledby="break-title"><span class="eyebrow">TAKE A BREATH</span><span class="break-icon">☕</span><h2 id="break-title">${e(previous.name)} 제출 완료</h2><p class="subtle">이전 영역 풀이 ${formatTime(previous.elapsed)}<br>전체 누적 응시 ${formatTime(exam.sections.reduce((sum,s)=>sum+s.elapsed,0))} ${exam.timeMode==='practice'?' · 시간 제한 없음':' / 최대 '+formatTime(exam.sections.reduce((sum,s)=>sum+s.minutes*60000,0))}</p><div class="next-subject"><span>다음 영역</span><strong>${e(next.name)}</strong><small>${next.count}문제 · ${exam.timeMode==='practice'?'시간 제한 없음':next.minutes+'분'}</small></div><p class="subtle">지금은 문제와 시간이 멈춰 있습니다.<br>충분히 쉬고 시작하세요. 휴식은 응시시간에 포함되지 않습니다.</p><button id="begin-next" class="primary wide">다음 영역 시작 →</button><button id="restart-previous" class="secondary wide">직전 과목 리셋</button></dialog>`;
   const dialog=app.querySelector('#break-dialog');dialog.oncancel=event=>event.preventDefault();dialog.showModal();
   app.querySelector('#restart-previous').onclick=()=>requestRestart('section',exam.sectionIndex-1);
   app.querySelector('#begin-next').onclick=async()=>{if(!await enterExamFullscreen())return;dialog.close();if(!prepared || !hasPage(examRange().start)){renderSetup();notify('같은 PDF를 선택한 뒤 이어보기로 다음 영역을 준비해 주세요.');return;}beginPreparation(exam);persist();renderExam();};
@@ -186,7 +188,7 @@ function renderAnswerEntry(){
   clearInterval(timer);view='result';nav();window.scrollTo(0,0);app.className='result-page';
   app.innerHTML=`<section class="panel empty-state"><h1>시험 제출 완료</h1><p>정답을 입력하면 채점 결과와 문제별 풀이 시간을 확인할 수 있습니다.</p></section><dialog id="answer-entry-dialog" aria-labelledby="answer-entry-title"><button class="close-dialog secondary" id="close-answer-entry" aria-label="정답 입력 닫기">✕</button><span class="eyebrow">READY TO REVIEW</span><h2 id="answer-entry-title">정답을 입력해 주세요</h2><p class="subtle">${e(exam.title)}<br>1~5 숫자를 공백이나 쉼표로 구분해 붙여넣으세요.</p><form id="answer-entry-form"><div class="key-fields ${exam.sections.length===1?'single-key':''}">${exam.sections.map((s,i)=>`<label>${e(s.name)} · ${s.count}문제<textarea data-entry="${i}" rows="2" maxlength="2000" required placeholder="1 3 2 5 …" aria-label="${e(s.name)} 정답 입력">${s.key?s.key.join(' '):''}</textarea></label>`).join('')}</div><p id="answer-entry-error" class="form-error" role="alert" hidden></p><button type="submit" class="primary wide">채점하고 결과 보기 →</button></form></dialog>`;
   const dialog=app.querySelector('#answer-entry-dialog');
-  const restart=document.createElement('button');restart.type='button';restart.className='text-button wide';restart.textContent='전체 시험 다시 시작';restart.onclick=()=>requestRestart('all');dialog.append(restart);
+  const restart=document.createElement('button');restart.type='button';restart.className='text-button wide';restart.textContent='전체 시험 리셋';restart.onclick=()=>requestRestart('all');dialog.append(restart);
   app.querySelector('#close-answer-entry').onclick=()=>dialog.close();
   dialog.onclose=()=>{if(exam.sections.some(s=>!s.key))renderHistory();};
   app.querySelector('#answer-entry-form').oninput=()=>{dialog.querySelector('#answer-entry-error').hidden=true;};
@@ -200,7 +202,7 @@ function renderAnswerEntry(){
   };
   dialog.showModal();[...dialog.querySelectorAll('[data-entry]')].find((field,i)=>!exam.sections[i].key)?.focus();
 }
-function renderResult(){if(exam.sections.some(s=>!s.key))return renderAnswerEntry();if(pdfViewer){pdfViewer.destroy();pdfViewer=null;}window.scrollTo(0,0);view='result';nav();clearInterval(timer);app.className='result-page';app.innerHTML=reportMarkup(exam,library);const retry=document.createElement('button');retry.className='secondary no-print';retry.textContent='전체 시험 다시 시작';retry.onclick=()=>requestRestart('all');app.querySelector('.result-heading .actions').append(retry);app.querySelector('#reflection').value=exam.reflection||'';app.querySelector('#reflection').oninput=event=>{exam.reflection=event.target.value;persist();rememberResult(exam);app.querySelector('.reflection .print-only').textContent=exam.reflection||'작성한 메모가 없습니다.';};
+function renderResult(){if(exam.sections.some(s=>!s.key))return renderAnswerEntry();if(pdfViewer){pdfViewer.destroy();pdfViewer=null;}window.scrollTo(0,0);view='result';nav();clearInterval(timer);app.className='result-page';app.innerHTML=reportMarkup(exam,library);const retry=document.createElement('button');retry.className='secondary no-print';retry.textContent='전체 시험 리셋';retry.onclick=()=>requestRestart('all');app.querySelector('.result-heading .actions').append(retry);app.querySelector('#reflection').value=exam.reflection||'';app.querySelector('#reflection').oninput=event=>{exam.reflection=event.target.value;persist();rememberResult(exam);app.querySelector('.reflection .print-only').textContent=exam.reflection||'작성한 메모가 없습니다.';};
   const resultKey=app.querySelector('#result-key-select'),regradeButton=app.querySelector('#regrade-set');
   resultKey.onchange=()=>{regradeButton.disabled=!resultKey.value;};
   regradeButton.onclick=()=>{try{const set=library.find(k=>k.id===resultKey.value);if(!set)throw new Error('정답 세트를 선택하세요.');exam=regradeAnswerSet(exam,set);persist();rememberResult(exam);renderResult();notify('선택한 정답 세트로 재채점했습니다.');}catch(err){notify(err.message);}};
