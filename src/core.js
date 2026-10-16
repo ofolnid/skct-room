@@ -167,3 +167,17 @@ export function pauseForNavigation(state,now=Date.now()) {
   }
   return changed;
 }
+
+// A restart creates a fresh attempt. A section retry retains earlier submitted sections.
+export function restartExam(state,scope='all',now=Date.now(),sectionIndex=state.sectionIndex){
+  if(!['all','section'].includes(scope))throw new Error('다시 시작할 범위를 확인해 주세요.');
+  if(scope==='section'&&(!Number.isInteger(sectionIndex)||sectionIndex<0||sectionIndex>state.sectionIndex||sectionIndex>=state.sections.length))throw new Error('다시 시작할 과목을 확인해 주세요.');
+  const fresh=createExam(state,state.pdfHash,now);
+  fresh.pdfPosition=structuredClone(state.pdfPosition||{page:state.pdfRange?.start||1,fraction:0,left:0});
+  if(scope==='section'){
+    fresh.id=state.id;fresh.createdAt=state.createdAt;fresh.reflection=state.reflection||'';
+    fresh.sectionIndex=sectionIndex;
+    for(let i=0;i<sectionIndex;i++)fresh.sections[i]=structuredClone(state.sections[i]);
+  }
+  return fresh;
+}

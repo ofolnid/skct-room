@@ -1,6 +1,6 @@
 import test, {after} from 'node:test';
 import assert from 'node:assert/strict';
-import {mountTools,calculate} from '../src/tools.js';
+import {mountTools,calculate,toolsMarkup} from '../src/tools.js';
 const originalDocument=globalThis.document;
 globalThis.document={createElement:()=>({textContent:''})};
 after(()=>{if(originalDocument===undefined)delete globalThis.document;else globalThis.document=originalDocument;});
@@ -21,7 +21,7 @@ test('결과 뒤 버튼 숫자는 새 계산, 연산 기호는 결과에 이어�
   const fresh=calculator();fresh.click('1');assert.equal(fresh.state.calculator.expression,'1');assert.equal(fresh.state.calculator.result,'0');
   for(const [op,result] of [['+','72'],['-','68'],['×','140'],['÷','35']]){
     const c=calculator();c.click(op);assert.equal(c.input.value,'70'+op);c.click('2');c.click('=');assert.equal(c.state.calculator.result,result);
-    assert.equal(c.state.calculator.history.length,2);
+    assert.equal(c.state.calculator.history.length,1);
     c.click('1');assert.equal(c.input.value,'1');
   }
 });
@@ -55,9 +55,9 @@ test('직접 입력·붙여넣기도 기호를 대체하고 커서·상태를 �
  assert.equal(c.input.value,'213+2');assert.equal(c.input.selectionStart,4);assert.equal(c.state.calculator.expression,'213+2');
  c.click('=');assert.equal(c.state.calculator.result,'215');
 });
-test('연산 기호 교체 후 결과 이어 계산·음수·소수·괄호를 보존한다',()=>{
+test('연산 기호 교체 후 결과 이어 계산·음수·소수를 보존한다',()=>{
  const c=calculator();c.click('×');c.click('+');c.click('2');c.click('=');assert.equal(c.state.calculator.result,'72');
- c.click('AC');for(const key of ['-','2','.','1','+','(','-','3',')'])c.click(key);c.click('=');assert.equal(c.state.calculator.result,'-5.1');
+ c.click('AC');for(const key of ['-','2','.','1','-','3'])c.click(key);c.click('=');assert.equal(c.state.calculator.result,'-5.1');
  c.click('1');assert.equal(c.input.value,'1');
 });
 
@@ -83,4 +83,24 @@ test('등호 반복은 마지막 연산을 반복하고 새 입력·AC는 반복
 test('작거나 큰 지수 표기 결과도 이어 계산 가능하며 비유한 값은 거절한다',()=>{
  assert.equal(calculate('1e-7×2'),2e-7);assert.equal(calculate('1e+21+1e+21'),2e21);assert.throws(()=>calculate('1e309'));
  const c=calculator();c.click('AC');c.input.value='1/10000000';c.input.oninput();c.click('=');assert.equal(c.input.value,'1e-7');c.click('×');c.click('2');c.click('=');assert.equal(c.state.calculator.result,'2e-7');
+});
+
+test('간단 계산기는 괄호·제곱 UI와 입력을 막고 직전 결과 하나만 보존한다',()=>{
+ const html=toolsMarkup();assert.doesNotMatch(html,/data-calc="[()^]"/);assert.match(html,/직전 계산 결과/);
+ const c=calculator();for(const data of ['(',')','^']){
+  let blocked=false;c.input.onbeforeinput({inputType:'insertText',data,preventDefault(){blocked=true;}});assert.equal(blocked,true);
+ }
+ let pasteBlocked=false;c.input.onpaste({clipboardData:{getData:()=>'(2+3)^2'},preventDefault(){pasteBlocked=true;}});assert.equal(pasteBlocked,true);
+ c.click('+');c.click('2');c.click('=');c.click('+');c.click('3');c.click('=');assert.equal(c.input.value,'75');assert.equal(c.state.calculator.history.length,1);assert.equal(c.state.calculator.history[0].result,'75');
+ c.click('AC');assert.deepEqual(c.state.calculator.history,[]);
+});
+
+test('Esc·Delete는 계산기 전체 초기화를 실행하지 않고 AC만 초기화한다',()=>{
+ const c=calculator();const before=structuredClone(c.state.calculator);
+ for(const key of ['Escape','Delete']){
+  for(const target of [c.input,c.box])c.box.onkeydown({key,target,preventDefault(){}});
+  assert.deepEqual(c.state.calculator,before);assert.equal(c.input.value,'70');
+ }
+ c.click('AC');assert.equal(c.input.value,'');assert.deepEqual(c.state.calculator.history,[]);
+ assert.doesNotMatch(toolsMarkup(),/Esc 초기화/);
 });

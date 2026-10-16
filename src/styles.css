@@ -55,3 +55,68 @@ html.help-open,body.help-open{overflow:hidden}#help-dialog{overscroll-behavior:c
 .question-difficulty{font-weight:650;color:#444}.type-divider{color:#b0b0b0;padding:0 3px}
 
 .zoom-label input[type="number"]{width:70px;min-width:0;padding:5px;font-size:11px;text-align:right}.zoom-label{gap:4px;white-space:nowrap}
+
+/* Centered exam workspace: PDF and answer row on the left, tools and OMR on the right. */
+body.exam-active .site-header{max-width:1400px;width:100%;padding:0 20px}
+body.exam-active .exam-page{max-width:1400px;width:100%;margin:0 auto;padding:12px 20px 16px;gap:12px;height:calc(100dvh - 42px)}
+.exam-header{position:relative;display:flex;align-items:center;justify-content:space-between;gap:20px;min-height:78px;padding:14px 18px 22px;background:#fff;border:1px solid var(--line);border-radius:12px;flex-shrink:0}
+.exam-heading{min-width:0;display:flex;flex-direction:column;gap:6px}.exam-heading>strong{font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.exam-heading>small{font-size:12px;color:var(--muted)}
+.exam-clock{display:flex;align-items:center;gap:12px;white-space:nowrap}.exam-clock>span{font-size:12px;color:var(--muted)}.exam-clock>b{font-size:30px;font-variant-numeric:tabular-nums;letter-spacing:-1px}.exam-clock>b.urgent{color:#ba3333}.exam-clock .secondary{font-size:12px;padding:8px 12px;min-height:34px}
+.exam-progress{position:absolute;bottom:0;left:0;right:0;height:5px;overflow:hidden;border-radius:0 0 12px 12px;background:#eaeaea}.exam-progress>i{height:100%;display:block;background:#171717;transition:width .2s}
+body.exam-active .exam-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;flex:1;min-height:0}
+.exam-main{display:flex;flex-direction:column;gap:10px;min-width:0;min-height:0}
+body.exam-active .pdf-panel{flex:1;min-height:0;height:auto;border-radius:16px;position:relative;top:auto}
+body.exam-active .pdf-toolbar{height:auto;min-height:48px;padding:8px 14px;gap:10px;flex-wrap:wrap}.pdf-toolbar>strong{font-size:15px}.pdf-question{font-size:12px;font-weight:500;color:#666;margin-left:10px}.pdf-toolbar .actions{gap:6px}.pdf-toolbar .actions>small{font-size:11px;color:#666}.pdf-toolbar .zoom-label{font-size:11px}
+body.exam-active .answer-bar{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);background:#fff;flex-shrink:0;overflow:visible;flex-wrap:wrap;border-radius:10px}
+body.exam-active .answer-bar .answer-options{display:flex;gap:6px;margin:0}.answer-bar .answer-options button{border-radius:50%}
+body.exam-active .answer-bar .answer-options button{width:36px;height:36px;font-size:15px}
+body.exam-active .answer-bar .confidence-flags{display:flex;margin:0;gap:5px}.answer-bar .confidence-flags button{flex:none;white-space:nowrap}
+body.exam-active .answer-bar .confidence-flags button{font-size:12px;padding:8px}.answer-bar .question-time{margin-left:auto}
+body.exam-active .answer-bar .question-time{margin-bottom:0;font-size:12px!important;white-space:nowrap}
+body.exam-active .answer-bar>.primary,body.exam-active .answer-bar>.secondary{padding:9px 12px;font-size:13px;min-height:36px}
+.answer-bar>p{margin:0;flex:1;font-size:13px;color:#666}
+body.exam-active .tool-panel{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(100px,1fr) auto auto;gap:10px;padding:0;border:none;background:none;height:100%;min-height:0;grid-column:auto}
+body.exam-active .tools-box,body.exam-active .calculator-box,.omr-panel{border:1px solid var(--line);border-radius:12px;background:#fff;padding:12px;min-width:0}
+body.exam-active .tools-box{min-height:0}.exam-active .tools-box textarea{border-radius:6px}
+body.exam-active .calculator-box{border-top:1px solid var(--line);border-left:1px solid var(--line)}
+body.exam-active .calc-grid{gap:4px}body.exam-active .calc-grid button{height:28px;font-size:14px;padding:3px}body.exam-active #calc-result{height:32px;font-size:24px;padding:2px}body.exam-active #calc-input{height:29px;padding:5px 8px;font-size:13px}
+body.exam-active #calc-history{height:30px;min-height:30px;font-size:10px;line-height:14px;margin:0 0 4px}.exam-active .calculator-heading{margin-bottom:5px}
+.omr-heading,.omr-footer{display:flex;align-items:center;justify-content:space-between;gap:6px}.omr-heading{font-size:13px}.omr-heading small,.omr-footer small{font-size:10px;color:#777}
+body.exam-active .omr-strip{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:3px;margin:8px 0}
+body.exam-active .omr-strip>span{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:32px;border-radius:4px;font-size:12px}.omr-strip>span>small{font-size:9px;opacity:.75}.omr-strip>span>b{font-size:12px}.omr-strip .skipped{background:#fff3d5;color:#8b6217}.omr-footer .text-button{font-size:11px;white-space:nowrap;padding:0}
+.restart-actions{display:grid;gap:8px;border-top:1px solid #ddd;margin-top:20px;padding-top:16px}.restart-actions button{font-size:13px}.break-dialog #restart-previous{margin-top:10px}
+@media(max-height:780px) and (min-width:901px){body.exam-active .exam-page{padding-top:8px;padding-bottom:8px;gap:8px}.exam-header{min-height:68px;padding:10px 14px 18px}.exam-heading>strong{font-size:15px}.exam-clock>b{font-size:26px}body.exam-active .tool-panel{gap:8px}.exam-active .tools-box .tool-tabs{margin-bottom:5px;padding-bottom:4px}body.exam-active .tool-tabs button{padding:4px 8px}.exam-active .tools-box .subtle{display:none}body.exam-active .tools-box,body.exam-active .calculator-box,.omr-panel{padding:9px}body.exam-active .calc-grid button{height:25px}.exam-active .calculator-heading span{font-size:8px}}
+@media(max-width:1100px) and (min-width:901px){body.exam-active .exam-layout{grid-template-columns:minmax(0,1fr) 280px;gap:12px}body.exam-active .exam-page{padding-left:16px;padding-right:16px}.exam-clock>span{display:none}.answer-bar .question-time{display:none}body.exam-active .answer-bar{gap:7px}body.exam-active .answer-bar .answer-options button{width:32px;height:32px}}
+@media(max-width:900px){body.exam-active{height:auto;overflow:auto}body.exam-active .exam-page{height:auto!important;min-height:calc(100dvh - 42px);padding:12px 16px}body.exam-active .exam-layout{grid-template-columns:minmax(0,1fr);gap:12px}.exam-main{min-height:65dvh}body.exam-active .pdf-panel{height:60dvh;min-height:300px;flex:none}body.exam-active .tool-panel{height:auto;grid-template-columns:1fr 1fr;grid-template-rows:200px auto}.omr-panel{grid-column:1/-1}.exam-header{gap:10px}.exam-heading>strong{font-size:14px}.exam-clock{gap:6px}.exam-clock>span{display:none}.exam-clock>b{font-size:24px}.exam-clock .secondary{padding:6px 8px}.exam-heading>small{font-size:10px}.exam-active .calculator-heading span{display:none}}
+@media(max-width:600px){body.exam-active .exam-page{padding:8px!important}.exam-header{padding:12px 10px 22px}.exam-heading>strong{max-width:180px}.exam-clock .secondary{font-size:0}.exam-clock .secondary::after{content:'Ⅱ';font-size:16px}body.exam-active .tool-panel{grid-template-columns:1fr;grid-template-rows:200px auto auto}.omr-panel{grid-column:auto}body.exam-active .answer-bar .question-time{display:none}body.exam-active .answer-bar .answer-options button{width:32px;height:32px}.pdf-toolbar .pdf-question{margin-left:4px}body.exam-active .pdf-toolbar{padding:8px}.pdf-toolbar .actions>small{display:none}}
+body.exam-active .pdf-panel{align-self:stretch;width:100%}
+
+/* Full-height exam and compact basic calculator. */
+body.exam-active .site-header{display:none}
+body.exam-active .exam-page{height:min(100dvh,900px);min-height:0}
+body.exam-active .answer-bar{align-items:center;column-gap:14px}
+body.exam-active .answer-bar>.secondary{margin-top:0}
+body.exam-active .answer-bar>.primary{margin-left:auto}
+body.exam-active .answer-bar .answer-options{gap:10px;align-items:center}
+body.exam-active .answer-bar .answer-options button{width:48px;height:38px;border-radius:8px;flex:none}
+body.exam-active .answer-bar .confidence-flags{align-items:center;max-width:none}
+body.exam-active .pdf-toolbar>strong{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:20px}
+body.exam-active .pdf-question{font-size:16px;color:#333;margin:0;font-weight:650}
+body.exam-active .pdf-toolbar .question-time{display:inline-flex;align-items:center;gap:5px;font-size:11px!important;margin:0;color:#777}
+body.exam-active .pdf-toolbar .question-time b{color:#333;font-variant-numeric:tabular-nums}
+body.exam-active .calc-grid button:last-child{grid-column:auto}
+body.exam-active #calc-history{height:26px;min-height:26px;text-align:right;font-size:16px;line-height:26px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+body.exam-active #calc-input{height:38px;font-size:22px;text-align:right;margin-bottom:8px}
+body.exam-active #calc-result{height:auto;min-height:24px;font-size:12px;color:#b33333;white-space:normal}
+.ready-dialog button{pointer-events:auto;margin-top:14px}
+#pause-dialog #exit-fullscreen{margin-top:10px}
+@media(max-width:1100px){body.exam-active .answer-bar{gap:8px}body.exam-active .answer-bar .answer-options{gap:7px}body.exam-active .answer-bar .answer-options button{width:40px}body.exam-active .pdf-toolbar>strong{font-size:18px;gap:9px}}
+
+/* Keep tall desktop screens comfortable without shrinking laptop workspaces. */
+.exam-progress{left:18px;right:18px;bottom:10px;height:5px;border-radius:4px}
+.exam-header{padding-bottom:28px}
+
+body.exam-active .pdf-toolbar>strong{font-size:24px}
+@media(max-width:1100px){body.exam-active .pdf-toolbar>strong{font-size:22px}}
+@media(max-height:780px) and (min-width:901px){.exam-header{padding-bottom:24px}.exam-progress{left:14px;right:14px;bottom:8px}}
+@media(max-width:900px){body.exam-active .exam-page{height:auto!important;min-height:100dvh}}
