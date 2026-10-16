@@ -29,7 +29,7 @@ test('실제 beforeunload/pagehide 핸들러는 저장 후 잠금을 해제하�
   const exam=make();startSection(exam,Date.now());
   const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');const events=new Map(),order=[];
   const window={addEventListener:(name,handler)=>events.set(name,handler)};
-  const register=Function('window','exam','pauseForNavigation','persist','clearInterval','releaseLock',`let locked=true,timer=1,helpResume=null;${source.slice(source.indexOf('function pauseOnLeave()'),source.indexOf("window.addEventListener('pageshow'"))}`);
+  const register=Function('window','exam','pauseForNavigation','persist','clearInterval','releaseLock',`let locked=true,timer=1,helpResume=null,reviewController=null;${source.slice(source.indexOf('function pauseOnLeave()'),source.indexOf("window.addEventListener('pageshow'"))}`);
   register(window,exam,pauseForNavigation,()=>order.push('save'),()=>order.push('stop'),()=>order.push('release'));
   events.get('beforeunload')();const pausedAt=exam.pausedAt;events.get('pagehide')();assert.equal(exam.phase,'paused');assert.equal(exam.pausedAt,pausedAt);assert.deepEqual(order,['stop','save','save','release']);
   const fallback=make();startSection(fallback,Date.now());order.length=0;register(window,fallback,pauseForNavigation,()=>order.push('save'),()=>order.push('stop'),()=>order.push('release'));events.get('pagehide')();assert.equal(fallback.phase,'paused');assert.deepEqual(order,['stop','save','release']);
@@ -45,7 +45,7 @@ test('사용안내는 활성 시험·준비만 멈추고 닫을 때 재개하며
     const dialog={open:false,showModal(){this.open=true;}};
     const document={querySelector:()=>dialog,documentElement:{classList:list},body:{classList:list}};
     let renders=0;
-    const actions=Function('exam','document','pauseForNavigation','resumePausedExam','clearInterval','persist','renderExam','afterChange',`let locked=true,helpResume=null,timer=1,view='exam';${code};return {openHelp,closeHelp,leave(){helpResume=null;}};`)(exam,document,s=>pauseForNavigation(s,2000),s=>resumePausedExam(s,10000),()=>{},()=>{},()=>renders++,()=>{});
+    const actions=Function('exam','document','pauseForNavigation','resumePausedExam','clearInterval','persist','renderExam','afterChange',`let locked=true,helpResume=null,timer=1,view='exam',reviewHelpResume=false,reviewController=null;${code};return {openHelp,closeHelp,leave(){helpResume=null;}};`)(exam,document,s=>pauseForNavigation(s,2000),s=>resumePausedExam(s,10000),()=>{},()=>{},()=>renders++,()=>{});
     actions.openHelp();assert.equal(exam.phase,'paused');assert.equal(classes.has('help-open'),true);
     if(mode==='leave')actions.leave();actions.closeHelp();assert.equal(classes.size,0);
     if(['paused','leave'].includes(mode)){assert.equal(exam.phase,'paused');assert.equal(renders,0);}

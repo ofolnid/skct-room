@@ -1,3 +1,4 @@
+import {mountReviewTools} from './review-tools.js';
 import { validateConfig, createExam, restartExam, beginPreparation, synchronizeExam, pauseForNavigation, pauseExam, resumePausedExam, chooseAnswer, submitSection, toggleFlag, parseKey, formatTime, escapeHTML as e } from './core.js';
 import { confirmAction,dismissActionDialogs } from './dialog.js';
 import { loadAnswerSets,applyAnswerSet,clearAnswerMetadata,regradeAnswerSet } from './answer-sets.js';
@@ -11,6 +12,7 @@ const app=document.querySelector('#app');
 const subjectNames=['언어이해','자료해석','창의수리','언어추리','수열추리'];
 const defaultSections=()=>subjectNames.map(name=>({name,start:1,end:1,count:20,minutes:15,key:null}));
 let exam=load('current'), examMode='full', fullSections=defaultSections(), singleSubject=subjectNames[0], breakMode='free', timeMode='timed', config={title:'',mode:'full',sections:fullSections};
+let workspace='pdf',reviewController=null,reviewHelpResume=false;
 let pdfInfo=null, fileName='', prepared=false, pageNumber=1, zoom=100, view='setup', busy=false, lastAction=0;
 let pdfViewer=null, pdfPosition=exam?.pdfPosition||{page:1,fraction:0,left:0};
 let library=[], selectedKey='', manualTitle='', timer=null, resultFilter='all', answerSetError='';
@@ -18,6 +20,7 @@ try { library=await loadAnswerSets(); } catch(err) { answerSetError=err.message;
 const lockName='skct-room-v1-active';
 let releaseLock=null, locked=false, helpResume=null;
 async function enterExamFullscreen(){
+  if(exam?.inputMode==='tools')return true;
   if(document.fullscreenElement)return true;
   if(!document.documentElement.requestFullscreen){notify('이 브라우저는 자동 전체화면을 지원하지 않습니다. 전체화면을 지원하는 브라우저에서 열어 주세요.');return false;}
   try{await document.documentElement.requestFullscreen();return true;}catch{notify('전체화면 진입이 차단됐습니다. 브라우저 권한이나 전체화면 설정을 확인한 뒤 다시 시작해 주세요.');return false;}
@@ -36,12 +39,14 @@ if(!locked){app.innerHTML='<section class="panel empty-state"><h1>다른 창에�
 else { if(exam && synchronizeExam(exam))persist(); if(exam?.phase==='finished'){view='result';rememberResult(exam);renderResult();}else renderSetup(); }
 function notify(text){const t=document.querySelector('#toast');t.textContent=text;t.hidden=false;clearTimeout(t._timeout);t._timeout=setTimeout(()=>t.hidden=true,4200);}
 function persist(){if(!locked)return;if(exam&&pdfViewer)exam.pdfPosition=pdfViewer.position();const current=load('current');if(exam && !(current && current.id!==exam.id && ['ready','running','paused','between','preparing'].includes(current.phase)))save('current',exam); document.querySelector('#storage-warning').hidden=storageAvailable();}
-function nav(){if(view!=='exam'&&document.fullscreenElement)document.exitFullscreen().catch(()=>{});document.querySelectorAll('nav button').forEach(b=>b.disabled=b.id!=='nav-help'&&view==='exam'&&exam?.phase==='preparing');document.body.classList.toggle('exam-active',view==='exam');document.querySelector('#nav-setup').classList.toggle('active',['setup','exam'].includes(view));document.querySelector('#nav-history').classList.toggle('active',['history','result'].includes(view));}
-function currentConfig(){return {title:library.find(k=>k.id===(app.querySelector('#key-select')?.value??selectedKey))?.title??app.querySelector('#exam-title')?.value??config.title,mode:examMode,timeMode,breakMode,autoAdvancePDF:config.autoAdvancePDF??false,pdfRange:{start:Number(app.querySelector('#range-start').value),end:Number(app.querySelector('#range-end').value)},sections:config.sections.map(clearAnswerMetadata)};}
+function nav(){if(view!=='exam'&&document.fullscreenElement)document.exitFullscreen().catch(()=>{});document.querySelectorAll('nav button').forEach(b=>b.disabled=b.id!=='nav-help'&&view==='exam'&&exam?.phase==='preparing');document.body.classList.toggle('exam-active',view==='exam');document.body.classList.toggle('tools-exam',view==='exam'&&exam?.inputMode==='tools');document.body.classList.toggle('review-active',view==='review');document.querySelector('#nav-tools').classList.toggle('active',['tools-home','review'].includes(view)||(view==='setup'&&workspace==='tools')||(view==='exam'&&exam?.inputMode==='tools'));document.querySelector('#nav-setup').classList.toggle('active',['setup','exam'].includes(view)&&(view==='exam'?exam?.inputMode!=='tools':workspace!=='tools'));document.querySelector('#nav-history').classList.toggle('active',['history','result'].includes(view));}
+function currentConfig(){return {inputMode:workspace,title:library.find(k=>k.id===(app.querySelector('#key-select')?.value??selectedKey))?.title??app.querySelector('#exam-title')?.value??config.title,mode:examMode,timeMode,breakMode,autoAdvancePDF:config.autoAdvancePDF??false,pdfRange:{start:Number(app.querySelector('#range-start')?.value??1),end:Number(app.querySelector('#range-end')?.value??1)},sections:config.sections.map(clearAnswerMetadata)};}
 function applyLibrary(c){if(!selectedKey)return c;const key=library.find(k=>k.id===selectedKey);if(!key)throw new Error('선택한 정답 세트를 찾을 수 없습니다.');return applyAnswerSet(c,key);}
 function subjectRow(s,i){return `<div class="subject-overview"><span>${String(i+1).padStart(2,'0')}</span><strong>${e(s.name)}</strong><small>20문제 · ${timeMode==='practice'?'시간 제한 없음':'15분'}</small></div>`;}
 function examRange(){return exam.pdfRange || {start:Math.min(...exam.sections.map(s=>s.start)),end:Math.max(...exam.sections.map(s=>s.end))};}
-function renderSetup(){
+function renderSetup(target=workspace){
+  if(!['pdf','tools'].includes(target))target=workspace;
+  workspace=target;reviewController?.dispose();reviewController=null;
   if(!locked)return;if(pdfViewer){pdfPosition=pdfViewer.position();pdfViewer.destroy();pdfViewer=null;}window.scrollTo(0,0);
   const stored=load('current');if(stored && ['ready','running','paused','between','preparing'].includes(stored.phase))exam=stored;
   view='setup';nav();clearInterval(timer);
@@ -50,11 +55,19 @@ function renderSetup(){
   app.innerHTML=`<div class="hero"><div><span class="eyebrow">A LITTLE PRACTICE. A BETTER PACE.</span><h1>실전처럼 풀고,<br><span>나의 페이스를 찾으세요.</span></h1><p>내 PDF로 시작하는 모의 시험.<br>한 문제씩 확정하고, 풀이 시간을 남겨 보세요.</p></div><div class="hero-art" aria-hidden="true"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="pace-card"><span>YOUR NEXT PACE</span><strong>15:00</strong><div class="mini-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><small>20 questions · one step at a time</small></div><span class="floating-tag">✓ 준비되면 시작</span></div></div>
   ${recover?`<section class="resume-banner"><div><strong>이어서 볼 수 있는 시험이 있습니다.</strong><p>${e(exam.title)} · ${e(exam.sections[exam.sectionIndex].name)}${exam.phase==='running'?(exam.timeMode==='practice'?' · 풀이시간을 기록 중입니다.':' · 제한시간이 계속 흐르고 있습니다.'):exam.phase==='paused'?(exam.pausedPhase==='preparing'?' · 준비 카운트다운 일시정지 중':' · 일시정지 중'):exam.phase==='preparing'?' · 준비 카운트다운이 계속 흐르고 있습니다.':''}</p></div><button id="resume-exam" class="primary">이어보기</button></section>`:''}
   <form id="setup-form"><div class="setup-grid"><div class="setup-main"><section class="panel"><div class="section-title"><h2><span class="step-dot">1</span> 채점 방식</h2><span class="pill">정답 세트 또는 직접 입력</span></div><label class="wide-label">사용할 시험 정답 세트<select id="key-select"><option value="">시험 종료 후 직접 정답 입력</option>${library.map(k=>`<option value="${e(k.id)}" ${selectedKey===k.id?'selected':''}>${e(k.title)} · ${k.sections.length}개 과목</option>`).join('')}</select></label><label id="manual-title-field" class="wide-label" ${selectedKey?'hidden':''}>시험 이름<input id="exam-title" maxlength="120" placeholder="예: 자유 문제집 · 언어이해 연습" value="${e(manualTitle)}" ${selectedKey?'':'required'}></label><p id="selected-exam-title" class="subtle" ${selectedKey?'':'hidden'}>시험 이름 · ${e(library.find(k=>k.id===selectedKey)?.title||'')}</p><p class="subtle">선택한 정답 세트는 시험 중 표시되지 않습니다. ${library.length?library.length+'개 세트가 준비되어 있습니다.':'아직 등록된 세트가 없습니다. 종료 후 직접 채점할 수 있습니다.'}${answerSetError?e(answerSetError):''}</p><div class="actions"><button id="import-config" type="button" class="secondary small">시험 설정 가져오기</button><button id="export-config" type="button" class="secondary small">시험 설정 내보내기</button><input id="config-file" type="file" accept="application/json,.json" hidden></div><p class="subtle">설정 파일에는 페이지 범위와 선택한 정답표가 들어갈 수 있습니다. PDF는 포함되지 않습니다.</p></section>
-  <section class="panel"><div class="section-title"><h2><span class="step-dot">2</span> 내 PDF</h2><span class="subtle">서버 전송 없이 내 기기에서</span></div><label class="upload-area" for="pdf-file"><span class="file-icon">↥</span><strong id="pdf-file-name">${e(fileName || '내 PDF 선택')}</strong><span id="pdf-file-meta">${pdfInfo?`총 ${pdfInfo.count}페이지 · 페이지 범위를 아래에서 지정하세요`:'클릭해서 PDF를 선택하세요 · 최대 500MB'}</span><input id="pdf-file" type="file" accept="application/pdf,.pdf"></label><p class="subtle">문제집은 각자 이용 권한이 있는 파일을 선택해 주세요. 사이트에서 공유되지 않습니다.</p></section>
-  <section class="panel"><div class="section-title"><h2><span class="step-dot">3</span> 응시 범위와 영역</h2><span class="pill">${examMode==='full'?'5영역 · 휴식시간 제외':'1영역 집중 연습'}</span></div><div class="exam-mode-picker" role="group" aria-label="응시 방식"><button type="button" data-mode="full" class="${examMode==='full'?'selected':''}"><span>FULL PRACTICE</span><strong>전체 모의고사</strong><small>${timeMode==='practice'?'5영역 · 시간 제한 없음':'5영역 × 15분 · 최대 75분'}</small></button><button type="button" data-mode="single" class="${examMode==='single'?'selected':''}"><span>FOCUS PRACTICE</span><strong>영역별 연습</strong><small>선택한 1영역 · ${timeMode==='practice'?'시간 제한 없음':'15분'}</small></button></div><fieldset class="break-mode-picker"><legend>시간 제한</legend><label><input type="radio" name="time-mode" value="timed" ${timeMode==='timed'?'checked':''}><span><strong>시간 제한 모드</strong><small>영역별 15분 · 시간 종료 시 자동 제출</small></span></label><label><input type="radio" name="time-mode" value="practice" ${timeMode==='practice'?'checked':''}><span><strong>연습 모드</strong><small>시간 제한 없이 풀이 · 문제별 풀이시간 기록과 종료 후 채점</small></span></label></fieldset>${examMode==='full'&&timeMode!=='practice'?`<fieldset class="break-mode-picker"><legend>영역 사이 진행 방식</legend><label><input type="radio" name="break-mode" value="free" ${breakMode==='free'?'checked':''}><span><strong>자유 휴식 모드</strong><small>영역 사이 자유 휴식 → 시작 버튼 → 5초 준비 후 자동 시작</small></span></label><label><input type="radio" name="break-mode" value="timed" ${breakMode==='timed'?'checked':''}><span><strong>실전 진행 모드</strong><small>영역 제출 후 30초 동안 휴식·PDF 위치 이동 → 다음 영역 자동 시작</small></span></label><p class="subtle">첫 영역은 시작 버튼 뒤 5초 준비합니다. 준비·휴식은 응시시간에서 제외됩니다.</p></fieldset>`:''}<p class="subtle">이번에 볼 모의고사의 시작·끝 페이지만 한 번 입력하세요. 책 쪽수가 아닌 PDF 페이지 순서입니다.</p><div class="pdf-range"><label>PDF 시작 페이지<input id="range-start" type="number" min="1" max="10000" value="${config.pdfRange?.start||1}" required></label><span>—</span><label>PDF 끝 페이지<input id="range-end" type="number" min="1" max="10000" value="${config.pdfRange?.end||1}" required></label></div>${examMode==='single'?`<label class="wide-label">연습할 영역<select id="single-subject">${subjectNames.map(name=>`<option value="${name}" ${name===singleSubject?'selected':''}>${name}</option>`).join('')}</select></label>`:''}<div id="subjects">${config.sections.map(subjectRow).join('')}</div><p class="subtle preparation-note">선택 범위만 고화질로 모두 준비합니다. 준비가 끝난 뒤 시험 시간이 시작됩니다.</p></section></div>
+  ${workspace==='pdf'?`<section class="panel"><div class="section-title"><h2><span class="step-dot">2</span> 내 PDF</h2><span class="subtle">서버 전송 없이 내 기기에서</span></div><label class="upload-area" for="pdf-file"><span class="file-icon">↥</span><strong id="pdf-file-name">${e(fileName || '내 PDF 선택')}</strong><span id="pdf-file-meta">${pdfInfo?`총 ${pdfInfo.count}페이지 · 페이지 범위를 아래에서 지정하세요`:'클릭해서 PDF를 선택하세요 · 최대 500MB'}</span><input id="pdf-file" type="file" accept="application/pdf,.pdf"></label><p class="subtle">문제집은 각자 이용 권한이 있는 파일을 선택해 주세요. 사이트에서 공유되지 않습니다.</p></section>`:''}
+  <section class="panel"><div class="section-title"><h2><span class="step-dot">3</span> 응시 범위와 영역</h2><span class="pill">${examMode==='full'?'5영역 · 휴식시간 제외':'1영역 집중 연습'}</span></div><div class="exam-mode-picker" role="group" aria-label="응시 방식"><button type="button" data-mode="full" class="${examMode==='full'?'selected':''}"><span>FULL PRACTICE</span><strong>전체 모의고사</strong><small>${timeMode==='practice'?'5영역 · 시간 제한 없음':'5영역 × 15분 · 최대 75분'}</small></button><button type="button" data-mode="single" class="${examMode==='single'?'selected':''}"><span>FOCUS PRACTICE</span><strong>영역별 연습</strong><small>선택한 1영역 · ${timeMode==='practice'?'시간 제한 없음':'15분'}</small></button></div><fieldset class="break-mode-picker"><legend>시간 제한</legend><label><input type="radio" name="time-mode" value="timed" ${timeMode==='timed'?'checked':''}><span><strong>시간 제한 모드</strong><small>영역별 15분 · 시간 종료 시 자동 제출</small></span></label><label><input type="radio" name="time-mode" value="practice" ${timeMode==='practice'?'checked':''}><span><strong>연습 모드</strong><small>시간 제한 없이 풀이 · 문제별 풀이시간 기록과 종료 후 채점</small></span></label></fieldset>${examMode==='full'&&timeMode!=='practice'?`<fieldset class="break-mode-picker"><legend>영역 사이 진행 방식</legend><label><input type="radio" name="break-mode" value="free" ${breakMode==='free'?'checked':''}><span><strong>자유 휴식 모드</strong><small>영역 사이 자유 휴식 → 시작 버튼 → 5초 준비 후 자동 시작</small></span></label><label><input type="radio" name="break-mode" value="timed" ${breakMode==='timed'?'checked':''}><span><strong>실전 진행 모드</strong><small>영역 제출 후 30초 동안 ${workspace==='tools'?'시험지 준비':'휴식·PDF 위치 이동'} → 다음 영역 자동 시작</small></span></label><p class="subtle">첫 영역은 시작 버튼 뒤 5초 준비합니다. 준비·휴식은 응시시간에서 제외됩니다.</p></fieldset>`:''}${workspace==='pdf'?`<p class="subtle">이번에 볼 모의고사의 시작·끝 페이지만 한 번 입력하세요. 책 쪽수가 아닌 PDF 페이지 순서입니다.</p><div class="pdf-range"><label>PDF 시작 페이지<input id="range-start" type="number" min="1" max="10000" value="${config.pdfRange?.start||1}" required></label><span>—</span><label>PDF 끝 페이지<input id="range-end" type="number" min="1" max="10000" value="${config.pdfRange?.end||1}" required></label></div>`:''}${examMode==='single'?`<label class="wide-label">연습할 영역<select id="single-subject">${subjectNames.map(name=>`<option value="${name}" ${name===singleSubject?'selected':''}>${name}</option>`).join('')}</select></label>`:''}<div id="subjects">${config.sections.map(subjectRow).join('')}</div><p class="subtle preparation-note">선택 범위만 고화질로 모두 준비합니다. 준비가 끝난 뒤 시험 시간이 시작됩니다.</p></section></div>
   <aside class="setup-aside"><div class="panel start-card"><span class="eyebrow">READY WHEN YOU ARE</span><h2>오늘의 연습을<br>시작해 볼까요?</h2><ul><li><span>✓</span>문제별 풀이 시간 기록</li><li><span>✓</span>확정한 답안은 변경 불가</li><li><span>✓</span>${timeMode==='practice'?'시간 제한 없이 연습':'과목별 제한시간 자동 제출'}</li><li><span>✓</span>메모장 · 그림판 · 계산기</li></ul><div id="prepare-progress" hidden><progress max="100" value="0"></progress><p class="subtle"></p></div><button id="prepare-button" class="primary wide" type="submit">PDF 준비하기 <span>→</span></button><p class="subtle centered">준비 중에는 시험 시간이 흐르지 않습니다.</p><div id="setup-error" class="form-error" role="alert" hidden></div></div><div class="privacy-note"><span>◉</span><p><strong>기록은 내 브라우저에만.</strong><br>결과를 복사하거나 PDF로 저장해<br>원하는 곳에 직접 보관하세요.</p></div></aside></div></form><footer class="page-footer">페이스룸은 개인 연습 도구입니다. SKCT 공식 서비스와 관련이 없습니다.</footer>`;
+  if(workspace==='tools'){
+    app.querySelector('.hero h1').innerHTML='문제는 따로,<br><span>도구는 한곳에.</span>';
+    app.querySelector('.hero p').innerHTML='PDF 없이 시험지 옆에 띄우는 풀이 도구.<br>답안·풀이시간·채점을 함께 기록하세요.';
+    app.querySelector('#prepare-button').innerHTML='풀이 도구 준비하기 <span>→</span>';
+    app.querySelector('.preparation-note').textContent='PDF 없이 메모장·그림판·계산기와 답안·타이머를 세로로 표시합니다.';
+    app.querySelectorAll('.step-dot')[1].textContent='2';
+    app.querySelector('.privacy-note').textContent='기록은 이 브라우저에만 저장됩니다. 중요한 결과는 복사하거나 PDF로 보관하세요.';
+  }
   document.querySelector('#storage-warning').hidden=storageAvailable();
-  app.querySelector('#pdf-file').onchange=async event=>{
+  const pdfInput=app.querySelector('#pdf-file');if(pdfInput)pdfInput.onchange=async event=>{
     if(busy)return;config=currentConfig();selectedKey=app.querySelector('#key-select').value;
     const file=event.target.files[0];if(!file)return;busy=true;disableSetup(true);showSetupError('');
     try { pdfInfo=await openPDF(file);fileName=file.name;prepared=false;config.pdfRange={start:1,end:pdfInfo.count};app.querySelector('#range-start').value='1';app.querySelector('#range-end').value=String(pdfInfo.count);app.querySelector('#pdf-file-name').textContent=fileName;app.querySelector('#pdf-file-meta').textContent=`총 ${pdfInfo.count}페이지 · 준비 전 페이지 범위를 설정하세요`; }
@@ -74,11 +87,11 @@ function renderSetup(){
     title.textContent=`시험 이름 · ${library.find(k=>k.id===selectedKey)?.title||''}`;
   };
   app.querySelector('#setup-form').onsubmit=async event=>{event.preventDefault();if(busy)return;showSetupError('');
-    try { config=applyLibrary(validateConfig(currentConfig()));if(!pdfInfo)throw new Error('먼저 내 PDF를 선택해 주세요.');if(exam && ['ready','running','paused','between','preparing'].includes(exam.phase) && !await confirmAction('진행 중인 시험을 종료하고 새 시험을 준비할까요? 현재 시험은 결과 기록에 남깁니다.','새 시험 준비'))return;
+    try { config=applyLibrary(validateConfig(currentConfig()));if(workspace==='pdf'&&!pdfInfo)throw new Error('먼저 내 PDF를 선택해 주세요.');if(exam && ['ready','running','paused','between','preparing'].includes(exam.phase) && !await confirmAction('진행 중인 시험을 종료하고 새 시험을 준비할까요? 현재 시험은 결과 기록에 남깁니다.','새 시험 준비'))return;
       if(exam && ['ready','running','paused','between','preparing'].includes(exam.phase)){finishAbandoned();}
       busy=true;disableSetup(true);app.querySelector('#prepare-progress').hidden=false;
-      await preparePDF(config.pdfRange,(n,total)=>{app.querySelector('progress').value=n/total*100;app.querySelector('#prepare-progress p').textContent=`${n} / ${total}페이지 준비 완료`;});
-      prepared=true;exam=createExam(config,pdfInfo.hash);persist();pageNumber=examRange().start;pdfPosition={page:pageNumber,fraction:0,left:0};renderExam();
+      if(workspace==='pdf')await preparePDF(config.pdfRange,(n,total)=>{app.querySelector('progress').value=n/total*100;app.querySelector('#prepare-progress p').textContent=`${n} / ${total}페이지 준비 완료`;});
+      prepared=true;exam=createExam(config,workspace==='tools'?null:pdfInfo.hash);persist();pageNumber=examRange().start;pdfPosition={page:pageNumber,fraction:0,left:0};renderExam();
     } catch(err){showSetupError(err.message);}finally{busy=false;if(view==='setup')disableSetup(false);}
   };
   app.querySelector('#resume-exam')?.addEventListener('click',()=>resumeExam());
@@ -91,6 +104,7 @@ function showSetupError(message){const box=app.querySelector('#setup-error');if(
 function finishAbandoned(){if(exam.phase==='paused')resumePausedExam(exam);if(exam.phase==='preparing')exam.phase='between';if(exam.phase==='running'){const mode=exam.breakMode;exam.breakMode='free';submitSection(exam);exam.breakMode=mode;}while(exam.phase==='between'){const s=exam.sections[exam.sectionIndex];s.elapsed=0;s.endedAt=Date.now();if(exam.sectionIndex+1<exam.sections.length)exam.sectionIndex++;else exam.phase='finished';}if(['ready','preparing'].includes(exam.phase))exam.phase='finished';exam.abandoned=true;rememberResult(exam);persist();}
 async function resumeExam(){
   if(busy)return;
+  if(exam?.inputMode==='tools')return renderExam();
   if(synchronizeExam(exam)){persist();if(exam.phase==='finished'){rememberResult(exam);return renderResult();}}
   if(prepared && pdfInfo?.hash===exam.pdfHash){pageNumber=examRange().start;return renderExam();}
   if(!pdfInfo)return notify('응시했던 PDF를 먼저 선택하고 이어보기를 눌러 주세요.');
@@ -107,10 +121,12 @@ function renderExam(){
   app.innerHTML=examMarkup(exam,zoom);
   const range=examRange();
   function updatePage(n){pageNumber=n;app.querySelector('#page-label').textContent=`${n-range.start+1} / ${range.end-range.start+1}`;app.querySelector('#prev-page').disabled=n<=range.start;app.querySelector('#next-page').disabled=n>=range.end;if(pdfViewer)persist();}
+  if(exam.inputMode!=='tools'){
   pdfViewer=mountPDFViewer(app.querySelector('#pdf-page'),range,zoom,pdfPosition,updatePage,notify);
   app.querySelector('#prev-page').onclick=()=>pdfViewer.go(pageNumber-1);
   app.querySelector('#next-page').onclick=()=>pdfViewer.go(pageNumber+1);
   mountZoomInput(app.querySelector('#pdf-zoom'),zoom,value=>{zoom=value;pdfViewer.zoom(zoom);},notify);
+  }
   app.querySelector('#start-section')?.addEventListener('click',startPreparedExam);
   app.querySelectorAll('[data-answer]').forEach(b=>b.onclick=()=>{const changed=chooseAnswer(exam,Number(b.dataset.answer));persist();if(!changed){afterChange();return;}app.querySelectorAll('[data-answer]').forEach(x=>{x.classList.toggle('selected',x===b);x.setAttribute('aria-pressed',String(x===b));});app.querySelector('#confirm-answer').disabled=false;});
   app.querySelectorAll('[data-flag]').forEach(b=>b.onclick=()=>{if(!toggleFlag(exam,b.dataset.flag)){persist();afterChange();return;}persist();const active=exam.selectionFlags[b.dataset.flag];b.classList.toggle('selected',active);b.setAttribute('aria-pressed',String(active));});
@@ -125,7 +141,7 @@ function showReady(){
   app.classList.add('exam-preparing');
   app.querySelector('.answer-panel').inert=true;app.querySelector('.tool-panel').inert=true;
   const box=document.createElement('section');box.className='preparation-dialog ready-dialog';box.setAttribute('role','dialog');box.setAttribute('aria-labelledby','ready-title');
-  box.innerHTML=`<span class="eyebrow">READY WHEN YOU ARE</span><h2 id="ready-title">${e(exam.sections[exam.sectionIndex].name)} 시작 대기</h2><p>PDF를 이동해 시작 위치를 맞춰 주세요.<br>아직 풀이 시간은 흐르지 않습니다.</p>${initialPDFOptionsMarkup(exam)}<button class="primary wide" id="ready-start">준비 완료 · 시험 시작</button>`;
+  box.innerHTML=`<span class="eyebrow">READY WHEN YOU ARE</span><h2 id="ready-title">${e(exam.sections[exam.sectionIndex].name)} 시작 대기</h2><p>${exam.inputMode==='tools'?'시험지를 준비해 주세요.':'PDF를 이동해 시작 위치를 맞춰 주세요.'}<br>아직 풀이 시간은 흐르지 않습니다.</p>${exam.inputMode==='tools'?'':initialPDFOptionsMarkup(exam)}<button class="primary wide" id="ready-start">준비 완료 · 시험 시작</button>`;
   mountAutoAdvanceToggle(box.querySelector('#ready-auto-advance-pdf'),exam,persist);
   box.querySelector('button').onclick=startPreparedExam;app.append(box);
 }
@@ -134,7 +150,7 @@ function showPreparation(){
   app.querySelectorAll('.answer-panel button,.tool-panel button,.tool-panel input,.tool-panel textarea,.tool-panel select').forEach(el=>el.disabled=true);
   app.querySelector('.answer-panel').inert=true;app.querySelector('.tool-panel').inert=true;
   const box=document.createElement('section');box.className='preparation-dialog';box.setAttribute('role','dialog');box.setAttribute('aria-labelledby','preparation-title');
-  box.innerHTML=`<span class="eyebrow">GET READY</span><h2 id="preparation-title">${e(exam.sections[exam.sectionIndex].name)} 시작 준비</h2><div class="preparation-time"><b id="preparation-count">${Math.max(0,Math.ceil((exam.preparationDeadline-Date.now())/1000))}</b><span>초 후 자동 시작</span></div><p>다음 영역의 시작 페이지로<br>PDF 위치를 맞춰 주세요.</p><p class="subtle">지금은 PDF만 이동할 수 있습니다.<br>${exam.timeMode==='practice'?'준비 시간이 끝나면 풀이시간 기록이 시작됩니다.':'준비 시간이 끝나면 15분 타이머가 시작됩니다.'}</p>`;
+  box.innerHTML=`<span class="eyebrow">GET READY</span><h2 id="preparation-title">${e(exam.sections[exam.sectionIndex].name)} 시작 준비</h2><div class="preparation-time"><b id="preparation-count">${Math.max(0,Math.ceil((exam.preparationDeadline-Date.now())/1000))}</b><span>초 후 자동 시작</span></div><p>${exam.inputMode==='tools'?'다음 영역의 시험지를 준비해 주세요.':'다음 영역의 시작 페이지로<br>PDF 위치를 맞춰 주세요.'}</p><p class="subtle">${exam.inputMode==='tools'?'':'지금은 PDF만 이동할 수 있습니다.<br>'}${exam.timeMode==='practice'?'준비 시간이 끝나면 풀이시간 기록이 시작됩니다.':'준비 시간이 끝나면 15분 타이머가 시작됩니다.'}</p>`;
   if(exam.sectionIndex>0){const retry=document.createElement('button');retry.className='secondary';retry.textContent='직전 과목 리셋';retry.style.pointerEvents='auto';retry.onclick=()=>requestRestart('section',exam.sectionIndex-1);box.append(retry);}
   app.append(box);
 }
@@ -142,12 +158,14 @@ function showPause(){
   clearInterval(timer);app.classList.add('exam-paused');
   const preparing=exam.pausedPhase==='preparing',remaining=Math.max(0,(preparing?exam.preparationDeadline:exam.deadline)-exam.pausedAt),s=exam.sections[exam.sectionIndex];
   const dialog=document.createElement('dialog');dialog.id='pause-dialog';dialog.className='pause-dialog';dialog.setAttribute('aria-labelledby','pause-title');
-  dialog.innerHTML=`<span class="eyebrow">TAKE A PAUSE</span><span class="pause-icon" aria-hidden="true">${pauseIconMarkup}</span><h2 id="pause-title">일시정지 중</h2><p class="subtle">${preparing?'준비 카운트다운이 멈춰 있습니다.':'과목과 문제 풀이 시간이 멈춰 있습니다.'}</p><div class="pause-info"><strong>${e(s.name)}</strong><span>${preparing?'남은 준비 시간':exam.timeMode==='practice'?'풀이 시간':'남은 시간'}</span><b>${formatTime(!preparing&&exam.timeMode==='practice'?Math.max(0,exam.pausedAt-s.startedAt-(s.pausedMs||0)):Math.ceil(remaining/1000)*1000)}</b></div>${pdfAutoAdvanceMarkup('pause-auto-advance-pdf',exam.autoAdvancePDF)}<button id="resume-paused" class="primary wide"><span aria-hidden="true">▶</span> ${preparing?'준비 재개':'시험 재개'}</button>`;
+  dialog.innerHTML=`<span class="eyebrow">TAKE A PAUSE</span><span class="pause-icon" aria-hidden="true">${pauseIconMarkup}</span><h2 id="pause-title">일시정지 중</h2><p class="subtle">${preparing?'준비 카운트다운이 멈춰 있습니다.':'과목과 문제 풀이 시간이 멈춰 있습니다.'}</p><div class="pause-info"><strong>${e(s.name)}</strong><span>${preparing?'남은 준비 시간':exam.timeMode==='practice'?'풀이 시간':'남은 시간'}</span><b>${formatTime(!preparing&&exam.timeMode==='practice'?Math.max(0,exam.pausedAt-s.startedAt-(s.pausedMs||0)):Math.ceil(remaining/1000)*1000)}</b></div>${exam.inputMode==='tools'?'':pdfAutoAdvanceMarkup('pause-auto-advance-pdf',exam.autoAdvancePDF)}<button id="resume-paused" class="primary wide"><span aria-hidden="true">▶</span> ${preparing?'준비 재개':'시험 재개'}</button>`;
   dialog.insertAdjacentHTML('beforeend','<button id="exit-fullscreen" class="secondary wide">전체화면 취소</button><div class="restart-actions"><button id="restart-section" class="secondary wide">현재 과목 리셋</button><button id="restart-all" class="text-button wide">전체 시험 리셋</button></div>');
   mountAutoAdvanceToggle(dialog.querySelector('#pause-auto-advance-pdf'),exam,persist);
+  if(exam.inputMode==='tools')dialog.querySelector('#exit-fullscreen').hidden=true;
   dialog.querySelector('#exit-fullscreen').onclick=async()=>{if(document.fullscreenElement)await document.exitFullscreen();};
   dialog.querySelector('#restart-section').onclick=()=>requestRestart('section');
   dialog.querySelector('#restart-all').onclick=()=>requestRestart('all');
+  if(exam.inputMode==='tools'){const back=document.createElement('button');back.className='text-button wide';back.textContent='도구 선택으로';back.onclick=()=>{dialog.close();dialog.remove();renderToolsHome();};dialog.append(back);}
   dialog.oncancel=event=>event.preventDefault();app.append(dialog);dialog.showModal();
   dialog.querySelector('#resume-paused').onclick=async()=>{if(!await enterExamFullscreen())return;if(!resumePausedExam(exam))return;persist();dialog.close();dialog.remove();renderExam();};
 }
@@ -170,6 +188,7 @@ async function requestRestart(scope,index=exam.sectionIndex){
   document.querySelectorAll('#pause-dialog,#break-dialog,#answer-entry-dialog').forEach(d=>{d.onclose=null;d.close();d.remove();});
   save('current',exam);
   const range=examRange();
+  if(exam.inputMode==='tools')return renderExam();
   if(prepared&&pdfInfo?.hash===exam.pdfHash&&Array.from({length:range.end-range.start+1},(_,i)=>range.start+i).every(hasPage))renderExam();
   else{renderSetup();notify('리셋했습니다. 같은 PDF를 선택하고 이어보기를 눌러 주세요.');}
 }
@@ -180,7 +199,7 @@ function renderBreak(){
   app.className='break-page';app.innerHTML=`<div class="break-background" aria-hidden="true"><div class="placeholder-page"></div><div class="placeholder-page"></div></div><dialog id="break-dialog" class="break-dialog" aria-labelledby="break-title"><span class="eyebrow">TAKE A BREATH</span><span class="break-icon">☕</span><h2 id="break-title">${e(previous.name)} 제출 완료</h2><p class="subtle">이전 영역 풀이 ${formatTime(previous.elapsed)}<br>전체 누적 응시 ${formatTime(exam.sections.reduce((sum,s)=>sum+s.elapsed,0))} ${exam.timeMode==='practice'?' · 시간 제한 없음':' / 최대 '+formatTime(exam.sections.reduce((sum,s)=>sum+s.minutes*60000,0))}</p><div class="next-subject"><span>다음 영역</span><strong>${e(next.name)}</strong><small>${next.count}문제 · ${exam.timeMode==='practice'?'시간 제한 없음':next.minutes+'분'}</small></div><p class="subtle">지금은 문제와 시간이 멈춰 있습니다.<br>충분히 쉬고 시작하세요. 휴식은 응시시간에 포함되지 않습니다.</p><button id="begin-next" class="primary wide">다음 영역 시작 →</button><button id="restart-previous" class="secondary wide">직전 과목 리셋</button></dialog>`;
   const dialog=app.querySelector('#break-dialog');dialog.oncancel=event=>event.preventDefault();dialog.showModal();
   app.querySelector('#restart-previous').onclick=()=>requestRestart('section',exam.sectionIndex-1);
-  app.querySelector('#begin-next').onclick=async()=>{if(!await enterExamFullscreen())return;dialog.close();if(!prepared || !hasPage(examRange().start)){renderSetup();notify('같은 PDF를 선택한 뒤 이어보기로 다음 영역을 준비해 주세요.');return;}beginPreparation(exam);persist();renderExam();};
+  app.querySelector('#begin-next').onclick=async()=>{if(!await enterExamFullscreen())return;dialog.close();if(exam.inputMode!=='tools'&&(!prepared || !hasPage(examRange().start))){renderSetup();notify('같은 PDF를 선택한 뒤 이어보기로 다음 영역을 준비해 주세요.');return;}beginPreparation(exam);persist();renderExam();};
 }
 function renderAnswerEntry(){
   if(pdfViewer){pdfViewer.destroy();pdfViewer=null;}
@@ -213,12 +232,14 @@ function renderResult(){if(exam.sections.some(s=>!s.key))return renderAnswerEntr
   app.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>applyFilter(b.dataset.filter));applyFilter(resultFilter);
 }
 function applyFilter(filter){resultFilter=filter;let shown=0;app.querySelectorAll('[data-filter]').forEach(b=>b.classList.toggle('active',b.dataset.filter===filter));app.querySelectorAll('.question-card').forEach(card=>{const hide=filter!=='all'&&card.dataset[filter]!=='true';card.hidden=hide;shown+=!hide;});app.querySelector('#filter-empty').hidden=shown>0;}
-function renderHistory(){if(pdfViewer){pdfPosition=pdfViewer.position();pdfViewer.destroy();pdfViewer=null;}window.scrollTo(0,0);view='history';nav();clearInterval(timer);const results=savedResults();app.className='history-page';app.innerHTML=`<div class="result-heading"><div><span class="eyebrow">MY PRACTICE LOG</span><h1>내 응시 기록</h1><p class="subtle">이 브라우저에서 남긴 연습을 다시 확인하세요.</p></div><button id="new-exam" class="primary">새 시험 준비 →</button></div>${results.length?`<div class="history-list">${results.map(r=>{const t=totals(r);return `<button class="history-card" data-result="${e(r.id)}"><span class="history-icon">↗</span><span><strong>${e(r.title)}</strong><small>${new Date(r.createdAt).toLocaleString('ko-KR')} · ${r.sections.length}개 과목 ${r.abandoned?'· 중단한 시험':''}</small></span><span class="history-score">${t.graded?t.correct+' / '+t.graded:'미채점'}<small>${formatTime(t.elapsed)}</small></span></button>`;}).join('')}</div>`:'<section class="panel empty-state"><span class="empty-icon">◷</span><h2>첫 연습을 기다리고 있어요.</h2><p>시험을 마치면 이곳에서 결과를 다시 볼 수 있습니다.</p></section>'}<p class="subtle">기록은 서버에 저장되지 않습니다. 중요한 결과는 복사하거나 PDF로 보관하세요.</p>`;app.querySelector('#new-exam').onclick=renderSetup;app.querySelectorAll('[data-result]').forEach(b=>b.onclick=()=>{exam=results.find(r=>r.id===b.dataset.result);resultFilter='all';renderResult();});}
+function renderHistory(){reviewController?.dispose();reviewController=null;if(pdfViewer){pdfPosition=pdfViewer.position();pdfViewer.destroy();pdfViewer=null;}window.scrollTo(0,0);view='history';nav();clearInterval(timer);const results=savedResults();app.className='history-page';app.innerHTML=`<div class="result-heading"><div><span class="eyebrow">MY PRACTICE LOG</span><h1>내 응시 기록</h1><p class="subtle">이 브라우저에서 남긴 연습을 다시 확인하세요.</p></div><button id="new-exam" class="primary">새 시험 준비 →</button></div>${results.length?`<div class="history-list">${results.map(r=>{const t=totals(r);return `<button class="history-card" data-result="${e(r.id)}"><span class="history-icon">↗</span><span><strong>${e(r.title)}</strong><small>${new Date(r.createdAt).toLocaleString('ko-KR')} · ${r.sections.length}개 과목 ${r.abandoned?'· 중단한 시험':''}</small></span><span class="history-score">${t.graded?t.correct+' / '+t.graded:'미채점'}<small>${formatTime(t.elapsed)}</small></span></button>`;}).join('')}</div>`:'<section class="panel empty-state"><span class="empty-icon">◷</span><h2>첫 연습을 기다리고 있어요.</h2><p>시험을 마치면 이곳에서 결과를 다시 볼 수 있습니다.</p></section>'}<p class="subtle">기록은 서버에 저장되지 않습니다. 중요한 결과는 복사하거나 PDF로 보관하세요.</p>`;app.querySelector('#new-exam').onclick=renderSetup;app.querySelectorAll('[data-result]').forEach(b=>b.onclick=()=>{exam=results.find(r=>r.id===b.dataset.result);resultFilter='all';renderResult();});}
 
 function download(name,content,type){const blob=new Blob([content],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name.replace(/[\\/:*?"<>|]/g,'_');a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);}
-document.querySelector('#nav-setup').onclick=()=>{if(busy)return;if(view==='exam'&&['running','paused','preparing'].includes(exam.phase))return notify('응시 중에는 시험 화면을 유지합니다. 과목을 제출한 뒤 이동할 수 있습니다.');renderSetup();};
+document.querySelector('#nav-tools').onclick=()=>{if(busy)return;if(view==='exam'&&['running','paused','preparing'].includes(exam?.phase))return notify('진행 중인 시험을 마친 뒤 이동해 주세요.');renderToolsHome();};
+document.querySelector('#nav-setup').onclick=()=>{if(busy)return;if(view==='exam'&&['running','paused','preparing'].includes(exam.phase))return notify('응시 중에는 시험 화면을 유지합니다. 과목을 제출한 뒤 이동할 수 있습니다.');renderSetup('pdf');};
 document.querySelector('#nav-history').onclick=()=>{if(busy)return;if(['running','paused','preparing'].includes(exam?.phase))return notify('응시 중에는 기록 화면으로 이동할 수 없습니다.');renderHistory();};
 function openHelp(){
+  reviewHelpResume=view==='review'&&reviewController?reviewController.pause():false;
   const dialog=document.querySelector('#help-dialog');if(dialog.open)return;
   helpResume=null;
   if(locked&&exam&&['running','preparing'].includes(exam.phase)){
@@ -229,6 +250,7 @@ function openHelp(){
   dialog.showModal();document.documentElement.classList.add('help-open');document.body.classList.add('help-open');
 }
 function closeHelp(){
+  if(reviewHelpResume&&view==='review')reviewController?.resume();reviewHelpResume=false;
   document.documentElement.classList.remove('help-open');document.body.classList.remove('help-open');
   const resume=helpResume;helpResume=null;
   if(locked&&resume?.exam===exam&&exam?.phase==='paused'&&exam.pausedAt===resume.pausedAt&&resumePausedExam(exam)){
@@ -241,7 +263,7 @@ document.querySelector('#help-dialog').addEventListener('close',closeHelp);
 document.querySelector('.brand').onclick=event=>{event.preventDefault();if(locked&&!busy&&!['running','paused','preparing'].includes(exam?.phase))renderSetup();};
 document.addEventListener('visibilitychange',()=>{if(locked&&exam&&synchronizeExam(exam)){persist();if(view==='exam')afterChange();}});
 function pauseOnLeave(){
-  helpResume=null;
+  helpResume=null;reviewController?.pause();
   if(!locked||!exam)return;
   if(pauseForNavigation(exam))clearInterval(timer);
   persist();
@@ -251,4 +273,13 @@ window.addEventListener('pagehide',()=>{pauseOnLeave();locked=false;releaseLock?
 window.addEventListener('pageshow',event=>{if(event.persisted)location.reload();});
 
 // Leaving browser fullscreen must not silently leave an exam running.
-document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement&&view==='exam'&&['running','preparing'].includes(exam?.phase)){pauseForNavigation(exam);persist();renderExam();}});
+document.addEventListener('fullscreenchange',()=>{if(exam?.inputMode!=='tools'&&!document.fullscreenElement&&view==='exam'&&['running','preparing'].includes(exam?.phase)){pauseForNavigation(exam);persist();renderExam();}});
+
+function renderToolsHome(){
+  reviewController?.dispose();reviewController=null;if(pdfViewer){pdfPosition=pdfViewer.position();pdfViewer.destroy();pdfViewer=null;}clearInterval(timer);view='tools-home';nav();window.scrollTo(0,0);app.className='tools-home-page';
+  app.innerHTML=`<div class="result-heading"><div><span class="eyebrow">WITHOUT A PDF</span><h1>풀이 도구</h1><p class="subtle">시험지나 문제집 옆에 띄워 쓰세요. PDF는 필요하지 않습니다.</p></div></div><div class="tool-mode-cards"><button data-tool-mode="full" class="panel"><span class="eyebrow">MOCK EXAM</span><h2>모고 풀이</h2><p>5영역 · 각 20문제<br>시간 제한 / 무제한 연습<br>자유 휴식 / 실전 진행</p><strong>모고 설정 →</strong></button><button data-tool-mode="single" class="panel"><span class="eyebrow">ONE SUBJECT</span><h2>영역별 연습</h2><p>선택한 영역 20문제<br>시간 제한 / 무제한 연습<br>답안 기록과 종료 후 채점</p><strong>영역 설정 →</strong></button><button data-tool-mode="review" class="panel"><span class="eyebrow">ONE AT A TIME</span><h2>오답풀이</h2><p>한 문항씩 스톱워치<br>답안 제출 시 시간 멈춤<br>메모장 · 그림판 · 계산기</p><strong>풀이 도구 열기 →</strong></button></div><p class="subtle">도구 화면은 전체화면을 강제하지 않아 다른 창과 나란히 사용할 수 있습니다. PDF 시험의 기록과 도구 시험의 기록은 내 응시 기록에서 함께 확인합니다.</p>`;
+  app.querySelectorAll('[data-tool-mode]').forEach(b=>b.onclick=()=>{
+    if(b.dataset.toolMode==='review'){view='review';nav();app.className='review-tools-page';reviewController=mountReviewTools(app);return;}
+    workspace='tools';examMode=b.dataset.toolMode;config={...config,inputMode:'tools',mode:examMode,sections:examMode==='full'?fullSections:[fullSections.find(s=>s.name===singleSubject)]};renderSetup('tools');
+  });
+}

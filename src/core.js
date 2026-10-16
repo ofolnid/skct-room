@@ -2,7 +2,9 @@ export const VERSION = 1;
 export function validateConfig(input) {
   if (!input || typeof input.title !== 'string' || !input.title.trim() || input.title.length > 120) throw new Error('시험 이름을 1~120자로 입력해 주세요.');
   if (!Array.isArray(input.sections) || input.sections.length < 1 || input.sections.length > 8) throw new Error('과목은 1~8개까지 설정할 수 있습니다.');
-  const range=input.pdfRange || {start:Math.min(...input.sections.map(s=>Number(s.start))),end:Math.max(...input.sections.map(s=>Number(s.end)))};
+  const inputMode=input.inputMode??'pdf';
+  if(!['pdf','tools'].includes(inputMode))throw new Error('풀이 화면을 확인해 주세요.');
+  const range=inputMode==='tools'?{start:1,end:1}:input.pdfRange || {start:Math.min(...input.sections.map(s=>Number(s.start))),end:Math.max(...input.sections.map(s=>Number(s.end)))};
   const start=Number(range.start), end=Number(range.end);
   if(!Number.isInteger(start)||!Number.isInteger(end)||start<1||end<start||end>10000)throw new Error('PDF 시작·끝 페이지를 확인해 주세요.');
   if(input.autoAdvancePDF!=null&&typeof input.autoAdvancePDF!=='boolean')throw new Error('PDF 자동 넘김 설정을 확인해 주세요.');
@@ -26,7 +28,7 @@ export function validateConfig(input) {
   if(!['timed','practice'].includes(timeMode))throw new Error('시간 제한 모드를 확인해 주세요.');
   const breakMode=input.breakMode??'free';
   if(!['free','timed'].includes(breakMode))throw new Error('영역 사이 휴식 모드를 확인해 주세요.');
-  return { title: input.title.trim(), mode, timeMode, breakMode:mode==='full'&&timeMode!=='practice'?breakMode:'free', pdfRange:{start,end}, autoAdvancePDF:input.autoAdvancePDF===true, sections };
+  return { title: input.title.trim(), inputMode, mode, timeMode, breakMode:mode==='full'&&timeMode!=='practice'?breakMode:'free', pdfRange:{start,end}, autoAdvancePDF:input.autoAdvancePDF===true, sections };
 }
 export function validateMetadata(values,count,type) {
   if(!Array.isArray(values) || values.length!==count)throw new Error('문항별 참고 정보 개수가 문항 수와 다릅니다.');
@@ -51,7 +53,7 @@ export function parseKey(input, count) {
 }
 export function createExam(config, pdfHash, now = Date.now()) {
   config = validateConfig(config);
-  return { version: VERSION, id: crypto.randomUUID(), title: config.title, mode:config.mode, timeMode:config.timeMode, breakMode:config.breakMode, preparationDeadline:null, pdfOptionsConfirmed:false, autoAdvancePDF:config.autoAdvancePDF, pdfRange:config.pdfRange, createdAt: now, pdfHash,
+  return { version: VERSION, id: crypto.randomUUID(), title: config.title, inputMode:config.inputMode, mode:config.mode, timeMode:config.timeMode, breakMode:config.breakMode, preparationDeadline:null, pdfOptionsConfirmed:false, autoAdvancePDF:config.autoAdvancePDF, pdfRange:config.pdfRange, createdAt: now, pdfHash,
     sections: config.sections.map(s => ({ ...s, items: Array.from({length:s.count}, () => ({answer:null, status:'unreached', ms:0})), startedAt:null, endedAt:null, elapsed:0 })),
     phase:'ready', pausedAt:null, sectionIndex:0, questionIndex:0, questionStartedAt:null, deadline:null, selection:null, selectionFlags:{uncertain:false,guessed:false}, memo:'', reflection:'', drawings:[], calculator:{expression:'',result:'0',completed:false,history:[]} };
 }
