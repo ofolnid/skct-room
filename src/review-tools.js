@@ -17,14 +17,24 @@ export function mountReviewTools(app){
  function tick(){const el=app.querySelector('#review-time');if(el){const ms=reviewElapsed(state);el.textContent=formatTime(ms);el.classList.toggle('over-minute',ms>60000);}if(state.startedAt!=null&&Date.now()-lastPersist>=1000){lastPersist=Date.now();persist();}}
  function render(){
   const activeTool=app.querySelector('[data-tool].active')?.dataset.tool;
-  app.innerHTML=`<div class="review-heading"><span class="eyebrow">REVIEW TOOLS</span><h1>오답풀이</h1><p class="subtle">문제는 따로 보고, 풀이시간과 답을 남기세요.</p></div><section class="review-clock"><b id="review-time">${formatTime(reviewElapsed(state))}</b><span>${state.submitted?'제출 완료 · 시간이 멈췄습니다':state.startedAt!=null?'풀이 중':state.elapsed?'일시정지 중':'시작하면 시간을 기록합니다'}</span><button id="review-toggle" class="secondary" ${state.submitted?'disabled':''}>${state.submitted?'제출 완료':state.startedAt!=null?'일시정지':state.elapsed?'계속 풀기':'풀이 시작'}</button></section><section class="review-answer"><div class="answer-options" role="group" aria-label="오답풀이 답 선택">${[1,2,3,4,5].map(a=>`<button data-review-answer="${a}" aria-pressed="${state.selection===a}" class="${state.selection===a?'selected':''}" ${state.submitted?'disabled':''}>${a}</button>`).join('')}</div><button id="review-submit" class="primary wide" ${state.startedAt==null||state.selection==null||state.submitted?'disabled':''}>답안 제출 · 시간 멈추기</button>${state.submitted?'<button id="review-next" class="secondary wide">다음 풀이 준비</button>':''}</section><aside class="tool-panel">${toolsMarkup()}</aside>${state.records.length?`<details class="review-records"><summary>풀이 기록 ${state.records.length}개</summary><div>${state.records.map((r,i)=>`<p><span>${i+1}번째 풀이</span><span>내 답 ${e(r.answer)}</span><b>${formatTime(r.ms)}</b></p>`).reverse().join('')}</div><button id="review-copy" class="secondary wide">기록 복사</button></details>`:''}`;
+  app.innerHTML=`<div class="review-layout">
+   <aside class="review-records" aria-label="풀이 기록">
+    <div class="review-records-heading"><h2>풀이 기록 <small>${state.records.length}</small></h2><button id="review-copy" class="secondary" aria-label="기록 복사" ${state.records.length?'':'disabled'}>복사</button></div>
+    <div class="review-record-list">${state.records.length?state.records.map((r,i)=>`<div class="review-record"><span>${i+1}</span><span>내 답 <b>${e(r.answer)}</b></span><b>${formatTime(r.ms)}</b></div>`).reverse().join(''):'<p class="review-record-empty">아직 기록이 없습니다.</p>'}</div>
+   </aside>
+   <div class="review-workspace">
+    <section class="review-clock"><div><h1>오답풀이</h1><b id="review-time">${formatTime(reviewElapsed(state))}</b></div><button id="review-toggle" class="secondary" ${state.submitted?'disabled':''}>${state.startedAt!=null?'일시정지':state.elapsed?'계속 풀기':'풀이 시작'}</button></section>
+    <section class="review-answer"><div class="answer-options" role="group" aria-label="오답풀이 답 선택">${[1,2,3,4,5].map(a=>`<button data-review-answer="${a}" aria-pressed="${state.selection===a}" class="${state.selection===a?'selected':''}" ${state.submitted?'disabled':''}>${a}</button>`).join('')}</div><div class="review-actions"><button id="review-submit" class="primary" ${state.startedAt==null||state.selection==null||state.submitted?'disabled':''}>답안 제출</button><button id="review-next" class="secondary" ${state.submitted?'':'disabled'}>다음 풀이</button></div></section>
+    <aside class="tool-panel">${toolsMarkup()}</aside>
+   </div>
+  </div>`;
   mountTools(app.querySelector('.tool-panel'),state,persist);
   if(activeTool==='draw')app.querySelector('[data-tool="draw"]').click();
   app.querySelector('#review-toggle').onclick=()=>{if(state.startedAt==null)startReview(state);else pauseReview(state);persist();render();};
   app.querySelectorAll('[data-review-answer]').forEach(b=>b.onclick=()=>{if(state.submitted)return;state.selection=Number(b.dataset.reviewAnswer);persist();render();});
   app.querySelector('#review-submit').onclick=()=>{if(submitReview(state)){persist();render();}};
   app.querySelector('#review-next')?.addEventListener('click',()=>{nextReview(state);persist();render();});
-  app.querySelector('#review-copy')?.addEventListener('click',async()=>{const text=['오답풀이 기록','순서\t내 답\t풀이시간',...state.records.map((r,i)=>`${i+1}\t${r.answer}\t${formatTime(r.ms)}`)].join('\n');try{await navigator.clipboard.writeText(text);app.querySelector('#review-copy').textContent='복사 완료';}catch{app.querySelector('#review-copy').textContent='복사를 사용할 수 없습니다';}});
+  app.querySelector('#review-copy')?.addEventListener('click',async()=>{const text=['오답풀이 기록','순서\t내 답\t풀이시간',...state.records.map((r,i)=>`${i+1}\t${r.answer}\t${formatTime(r.ms)}`)].join('\n');try{await navigator.clipboard.writeText(text);app.querySelector('#review-copy').textContent='복사 완료';}catch{app.querySelector('#review-copy').textContent='복사 실패';}});
   tick();
  }
  render();interval=setInterval(tick,200);
